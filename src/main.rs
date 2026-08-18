@@ -1,7 +1,7 @@
+#![windows_subsystem = "windows"]
 mod database;
 mod models;
 mod repository;
-//mod menus;
 mod gui;
 mod estilos;
 

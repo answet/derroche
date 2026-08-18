@@ -7,9 +7,24 @@ use super::{gastos, analisis, configuracion};
 use crate::estilos;
 use crate::models::{Categoria, Persona, GastoDetalle, TotalMensual, GastoPorCategoria, GastoPorPersona, Configuracion};
 
+const ICONO: &[u8] = include_bytes!("../../assets/icono.png");
 
 pub fn run() -> iced::Result {
+    let imagen = image::load_from_memory(ICONO)
+        .expect("No se pudo cargar el icono")
+        .into_rgba8();
+
+    let (ancho, alto) = imagen.dimensions();
+
+    let icono = iced::window::icon::from_rgba(imagen.into_raw(), ancho, alto)
+        .expect("No se pudo cargar el icono");
+
     iced::application(inicializar, update, view)
+        .window(iced::window::Settings {
+            icon: Some(icono),
+
+            ..Default::default()
+        })
         .run()
 }
 
