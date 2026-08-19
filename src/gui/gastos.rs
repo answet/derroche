@@ -714,7 +714,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             let centro = column![
                 Space::new().height(Length::Fill),
                 container(tabla_gastos(estado))
-                    .width(Length::Fixed(800.0))
+                    .width(Length::Fill)
                     .height(Length::Fixed(500.0))
                     .padding(10)
                     .style(|_theme| container::Style {
@@ -763,19 +763,6 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 container(centro)
                     .width(Length::Fill)
                     .height(Length::Fill),
-
-                container(resumen(estado))
-                    .width(Length::Fixed(180.0))
-                    .padding(10)
-                    .style(|_theme| container::Style {
-                        background: Some(Background::Color(estilos::FONDO_RESUMEN_GASTOS)),
-                        border: Border {
-                            color: estilos::BORDE_RESUMEN_GASTOS,
-                            width: 1.0,
-                            radius: 14.0.into(),
-                        },
-                        ..Default::default()
-                    }),
             ];
 
             container(contenido)
@@ -971,7 +958,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .align_x(Alignment::Center)
         )
         .on_press(Message::OrdenarPor(ColumnaOrden::Descripcion))
-        .width(Length::Fill)
+        .width(Length::FillPortion(3))
         .style(estilo_encabezado),
 
         button(
@@ -983,7 +970,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .align_x(Alignment::Center)
         )
         .on_press(Message::OrdenarPor(ColumnaOrden::Monto))
-        .width(Length::Fixed(110.0))
+        .width(Length::FillPortion(1))
         .style(estilo_encabezado),
 
         button(
@@ -995,7 +982,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .align_x(Alignment::Center)
         )
         .on_press(Message::OrdenarPor(ColumnaOrden::Persona))
-        .width(Length::Fixed(110.0))
+        .width(Length::FillPortion(1))
         .style(estilo_encabezado),
 
         button(
@@ -1007,7 +994,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .align_x(Alignment::Center)
         )
         .on_press(Message::OrdenarPor(ColumnaOrden::Categoria))
-        .width(Length::Fixed(130.0))
+        .width(Length::FillPortion(1))
         .style(estilo_encabezado),
 
         button(
@@ -1019,7 +1006,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .align_x(Alignment::Center)
         )
         .on_press(Message::OrdenarPor(ColumnaOrden::Fecha))
-        .width(Length::Fixed(110.0))
+        .width(Length::FillPortion(1))
         .style(estilo_encabezado),
     ]
     .spacing(10);
@@ -1034,23 +1021,23 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
 
         let fila = row![
             text(&gasto.descripcion)
-                .width(Length::Fill)
+                .width(Length::FillPortion(3))
                 .align_x(Alignment::Center),
 
             text(formatear_monto(gasto.monto))
-                .width(Length::Fixed(110.0))
+                .width(Length::FillPortion(1))
                 .align_x(Alignment::Center),
 
             text(&gasto.persona)
-                .width(Length::Fixed(110.0))
+                .width(Length::FillPortion(1))
                 .align_x(Alignment::Center),
 
             text(&gasto.categoria)
-                .width(Length::Fixed(130.0))
+                .width(Length::FillPortion(1))
                 .align_x(Alignment::Center),
 
             text(&gasto.fecha)
-                .width(Length::Fixed(110.0))
+                .width(Length::FillPortion(1))
                 .align_x(Alignment::Center),
         ]
         .spacing(5)
@@ -1086,7 +1073,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
         ]
         .spacing(10),
     )
-    .width(Length::Fixed(800.0))
+    .width(Length::Fill)
     .into()
 }
 
@@ -1146,14 +1133,6 @@ fn nombre_mes(numero: u32) -> &'static str {
     }
 }
 
-fn mes_anterior(mes: u32, anio: u32) -> (u32, u32) {
-    if mes == 1 {
-        (12, anio - 1)
-    } else {
-        (mes - 1, anio)
-    }
-}
-
 fn formatear_monto(monto: f64) -> String {
     let negativo = monto < 0.0;
     let monto = monto.abs();
@@ -1210,126 +1189,6 @@ fn reiniciar_formulario(estado: &mut Estado) {
             .iter()
             .find(|persona| persona.nombre == "General")
             .cloned();
-}
-
-fn resumen(estado: &Estado) -> Element<'_, Message> {
-    let total: f64 = estado
-        .gastos
-        .iter()
-        .filter_map(|gasto| {
-            let fecha = NaiveDate::parse_from_str(
-                &gasto.fecha,
-                "%d-%m-%Y",
-            )
-            .ok()?;
-
-            if fecha.month() == estado.mes
-                && fecha.year() as u32 == estado.anio
-            {
-                Some(gasto.monto)
-            } else {
-                None
-            }
-        })
-        .sum();
-
-    let mayor_gasto = estado
-        .gastos
-        .iter()
-        .filter_map(|gasto| {
-            let fecha = NaiveDate::parse_from_str(
-                &gasto.fecha,
-                "%d-%m-%Y",
-            )
-            .ok()?;
-
-            if fecha.month() == estado.mes
-                && fecha.year() as u32 == estado.anio
-            {
-                Some(gasto.monto)
-            } else {
-                None
-            }
-        })
-        .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-    let mayor_gasto_texto = match mayor_gasto {
-        Some(monto) => formatear_monto(monto),
-        None => "$0".to_string(),
-    };
-
-    let (mes_anterior, anio_anterior) = mes_anterior(estado.mes, estado.anio);
-
-    let total_anterior: f64 = estado
-        .gastos
-        .iter()
-        .filter_map(|gasto| {
-            let fecha = NaiveDate::parse_from_str(
-                &gasto.fecha,
-                "%d-%m-%Y",
-            )
-            .ok()?;
-
-            if fecha.month() == mes_anterior
-                && fecha.year() as u32 == anio_anterior
-            {
-                Some(gasto.monto)
-            } else {
-                None
-            }
-        })
-        .sum();
-
-    let variacion = if total_anterior > 0.0 {
-        ((total - total_anterior) / total_anterior) * 100.0
-    } else {
-        0.0
-    };
-
-    let variacion_texto = if total_anterior > 0.0 {
-        if variacion >= 0.0 {
-            format!("+ {:.1}%", variacion)
-        } else {
-            format!("- {:.1}%", variacion.abs())
-        }
-    } else {
-        "Sin datos".to_string()
-    };
-
-    container(
-        column![
-            text("RESUMEN")
-                .color(estilos::GASTOS_TEXTO_RESUMEN),
-
-            column![
-                text("Total gastado")
-                    .color(estilos::GASTOS_TEXTO_TOTAL),
-                text(formatear_monto(total))
-                    .color(estilos::GASTOS_TEXTO_TOTAL_NUM),
-            ]
-            .spacing(5),
-
-            column![
-                text("Mayor gasto")
-                    .color(estilos::GASTOS_TEXTO_MAYOR),
-                text(mayor_gasto_texto)
-                    .color(estilos::GASTOS_TEXTO_MAYOR_NUM),
-            ]
-            .spacing(5),
-
-            column![
-                text("vs. mes anterior")
-                    .color(estilos::GASTOS_TEXTO_VARIACION),
-                text(variacion_texto)
-                    .color(estilos::GASTOS_TEXTO_VARIACION_NUM),
-            ]
-            .spacing(5),
-        ]
-        .spacing(20),
-    )
-    .width(Length::Fixed(180.0))
-    .padding(20)
-    .into()
 }
 
 fn estilo_encabezado(
