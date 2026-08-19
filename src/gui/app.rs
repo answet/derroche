@@ -33,6 +33,7 @@ pub fn run() -> iced::Result {
         .title("Derroche")
         .window(iced::window::Settings {
             icon: Some(icono),
+            decorations: true,
             ..Default::default()
         })
         .run()
