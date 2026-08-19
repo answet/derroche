@@ -525,7 +525,7 @@ fn formatear_monto(monto: f64) -> String {
     let mut entero_formateado = String::new();
 
     for (i, caracter) in digitos.chars().enumerate() {
-        if i > 0 && (digitos.len() - i) % 3 == 0 {
+        if i > 0 && (digitos.len() - i).is_multiple_of(3) {
             entero_formateado.push('.');
         }
 

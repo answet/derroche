@@ -312,8 +312,9 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
         }
 
         Message::EditarGasto => {
-            if let Some(id) = estado.gasto_seleccionado {
-                if let Some(gasto) = estado.gastos.iter().find(|gasto| gasto.id == id) {
+            if let Some(id) = estado.gasto_seleccionado
+                && let Some(gasto) = estado.gastos.iter().find(|gasto| gasto.id == id)
+            {
                     estado.descripcion = gasto.descripcion.clone();
                     estado.monto = gasto.monto.to_string();
                     estado.fecha = gasto.fecha.clone();
@@ -332,7 +333,6 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
                     estado.error = None;
                     estado.modo_formulario = ModoFormulario::Editar(id);
-                }
             }
         }
 
@@ -473,7 +473,7 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
 
     let boton_guardar = match estado.modo_formulario {
         ModoFormulario::Nuevo => {
-            button("Agregar gasto")
+            button("Agregar")
                 .on_press(Message::Agregar)
                 .style(|_theme, _status| button::Style {
                     background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
@@ -484,7 +484,7 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
         }
 
         ModoFormulario::Editar(_) => {
-            button("Guardar cambios")
+            button("Guardar")
                 .on_press(Message::GuardarEdicion)
                 .style(|_theme, _status| button::Style {
                     background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
@@ -792,7 +792,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 .spacing(10)
             } else {
                 row![
-                    button("+ Agregar gasto")
+                    button("+ Agregar Gasto")
                         .on_press(Message::MostrarFormulario)
                         .style(|_theme, _status| button::Style {
                             background: Some(
@@ -1261,7 +1261,7 @@ fn formatear_monto(monto: f64) -> String {
     let mut entero_formateado = String::new();
 
     for (i, caracter) in digitos.chars().enumerate() {
-        if i > 0 && (digitos.len() - i) % 3 == 0 {
+        if i > 0 && (digitos.len() - i).is_multiple_of(3) {
             entero_formateado.push('.');
         }
 

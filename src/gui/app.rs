@@ -1,4 +1,4 @@
-use iced::widget::{button, column, row, container};
+use iced::widget::{button, column, row, container, svg, text};
 use iced::{Element, Task, Length, Alignment, Background, Border};
 use iced::border::Radius;
 
@@ -7,7 +7,15 @@ use super::{gastos, analisis, configuracion};
 use crate::estilos;
 use crate::models::{Categoria, Persona, GastoDetalle, TotalMensual, GastoPorCategoria, GastoPorPersona, Configuracion};
 
+use std::path::PathBuf;
+
 const ICONO: &[u8] = include_bytes!("../../assets/icono.png");
+
+fn ruta_asset(nombre: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("assets")
+        .join(nombre)
+}
 
 pub fn run() -> iced::Result {
     let imagen = image::load_from_memory(ICONO)
@@ -90,17 +98,12 @@ fn inicializar() -> (Estado, Task<Message>) {
     (estado, tarea)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 enum Pantalla {
+    #[default]
     Gastos,
     Analisis,
     Configuracion,
-}
-
-impl Default for Pantalla {
-    fn default() -> Self {
-        Pantalla::Gastos
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -135,7 +138,13 @@ struct Estado {
     configuracion: configuracion::Estado,
 }
 
-fn cargar_datos() -> Result<(Vec<Categoria>, Vec<Persona>, Vec<GastoDetalle>), String> {
+type DatosCargados = (
+    Vec<Categoria>,
+    Vec<Persona>,
+    Vec<GastoDetalle>,
+);
+
+fn cargar_datos() -> Result<DatosCargados, String> {
     let conexion =
         crate::database::conectar()
             .map_err(|error| error.to_string())?;
@@ -158,10 +167,19 @@ fn cargar_datos() -> Result<(Vec<Categoria>, Vec<Persona>, Vec<GastoDetalle>), S
     Ok((categorias, personas, gastos))
 }
 
+struct DatosAnalisis {
+    total_mes: f64,
+    total_mes_anterior: f64,
+    mayor_gasto: Option<GastoDetalle>,
+    totales_mensuales: Vec<TotalMensual>,
+    gastos_por_categoria: Vec<GastoPorCategoria>,
+    gastos_por_persona: Vec<GastoPorPersona>,
+}
+
 fn cargar_datos_analisis(
     mes: u32,
     anio: i32,
-) -> Result<(f64, f64, Option<GastoDetalle>, Vec<TotalMensual>, Vec<GastoPorCategoria>, Vec<GastoPorPersona>), String> {
+) -> Result<DatosAnalisis, String> {
 
     let conexion =
         crate::database::conectar()
@@ -213,14 +231,14 @@ fn cargar_datos_analisis(
         )
         .map_err(|error| error.to_string())?;
 
-    Ok((
+    Ok(DatosAnalisis {
         total_mes,
         total_mes_anterior,
         mayor_gasto,
         totales_mensuales,
         gastos_por_categoria,
         gastos_por_persona,
-    ))
+    })
 }
 
 fn cargar_datos_configuracion()
@@ -368,14 +386,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                     cargar_datos_analisis(mes, anio)
                 },
                 |resultado| match resultado {
-                    Ok((total, total_anterior, mayor_gasto, totales, gastos_por_categoria, gastos_por_persona)) => {
+                    Ok(datos) => {
                         Message::DatosAnalisisCargados(
-                            total,
-                            total_anterior,
-                            mayor_gasto,
-                            totales,
-                            gastos_por_categoria,
-                            gastos_por_persona,
+                            datos.total_mes,
+                            datos.total_mes_anterior,
+                            datos.mayor_gasto,
+                            datos.totales_mensuales,
+                            datos.gastos_por_categoria,
+                            datos.gastos_por_persona,
                         )
                     }
 
@@ -415,14 +433,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         cargar_datos_analisis(mes, anio)
                     },
                     |resultado| match resultado {
-                        Ok((total, total_anterior, mayor_gasto, totales, gastos_por_categoria, gastos_por_persona)) => {
+                        Ok(datos) => {
                             Message::DatosAnalisisCargados(
-                                total,
-                                total_anterior,
-                                mayor_gasto,
-                                totales,
-                                gastos_por_categoria,
-                                gastos_por_persona,
+                                datos.total_mes,
+                                datos.total_mes_anterior,
+                                datos.mayor_gasto,
+                                datos.totales_mensuales,
+                                datos.gastos_por_categoria,
+                                datos.gastos_por_persona,
                             )
                         }
 
@@ -686,25 +704,6 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
     }
 }
 
-// fn view(estado: &Estado) -> Element<'_, Message> {
-//     let contenido = match estado.pantalla {
-//         Pantalla::Gastos => gastos::view(&estado.gastos).map(Message::Gastos),
-//         Pantalla::Analisis => analisis::view(&estado.analisis).map(Message::Analisis),
-//         Pantalla::Configuracion => configuracion::view(&estado.configuracion).map(Message::Configuracion),
-//     };
-//
-//     row![
-//         sidebar(estado),
-//
-//         container(contenido)
-//             .width(Length::Fill)
-//             .height(Length::Fill)
-//     ]
-//     .width(Length::Fill)
-//     .height(Length::Fill)
-//     .into()
-// }
-
 fn view(estado: &Estado) -> Element<'_, Message> {
     let contenido = match estado.pantalla {
         Pantalla::Gastos => gastos::view(&estado.gastos).map(Message::Gastos),
@@ -728,29 +727,42 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
     let color_gastos = if estado.pantalla == Pantalla::Gastos {
         estilos::FONDO_GASTOS
     } else {
-        estilos::BOTONES_SIDEBAR_INACTIVOS
+        estilos::BOTONES_BARRA_SUPERIOR_INACTIVOS
     };
 
     let color_analisis = if estado.pantalla == Pantalla::Analisis {
         estilos::FONDO_ANALISIS
     } else {
-        estilos::BOTONES_SIDEBAR_INACTIVOS
+        estilos::BOTONES_BARRA_SUPERIOR_INACTIVOS
     };
 
     let color_configuracion = if estado.pantalla == Pantalla::Configuracion {
         estilos::FONDO_CONFIGURACION
     } else {
-        estilos::BOTONES_SIDEBAR_INACTIVOS
+        estilos::BOTONES_BARRA_SUPERIOR_INACTIVOS
     };
 
     container(
         row![
             container(
-                button("Gastos")
+                button(
+                        row![
+                            svg(ruta_asset("gastos.svg"))
+                                .width(20)
+                                .height(20)
+                                .style(|_theme, _status| svg::Style {
+                                    color: Some(estilos::TEXTO_BARRA_SUPERIOR),
+                                }),
+
+                            text("Gastos"),
+                        ]
+                        .spacing(8)
+                        .align_y(Alignment::Center)
+                    )
                     .on_press(Message::MostrarGastos)
                     .style(|_theme, _status| button::Style {
                         background: None,
-                        text_color: estilos::TEXTO_SIDEBAR,
+                        text_color: estilos::TEXTO_BARRA_SUPERIOR,
                         border: Border::default(),
                         ..Default::default()
                     })
@@ -772,11 +784,24 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
             }),
 
             container(
-                button("Analisis")
+                button(
+                        row![
+                            svg(ruta_asset("analisis.svg"))
+                                .width(20)
+                                .height(20)
+                                .style(|_theme, _status| svg::Style {
+                                    color: Some(estilos::TEXTO_BARRA_SUPERIOR),
+                                }),
+
+                            text("Analisis"),
+                        ]
+                        .spacing(8)
+                        .align_y(Alignment::Center)
+                    )
                     .on_press(Message::MostrarAnalisis)
                     .style(|_theme, _status| button::Style {
                         background: None,
-                        text_color: estilos::TEXTO_SIDEBAR,
+                        text_color: estilos::TEXTO_BARRA_SUPERIOR,
                         border: Border::default(),
                         ..Default::default()
                     })
@@ -798,11 +823,24 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
             }),
 
             container(
-                button("Configuracion")
+                button(
+                        row![
+                            svg(ruta_asset("configuracion.svg"))
+                                .width(20)
+                                .height(20)
+                                .style(|_theme, _status| svg::Style {
+                                    color: Some(estilos::TEXTO_BARRA_SUPERIOR),
+                                }),
+
+                            text("Configuracion"),
+                        ]
+                        .spacing(8)
+                        .align_y(Alignment::Center)
+                    )
                     .on_press(Message::MostrarConfiguracion)
                     .style(|_theme, _status| button::Style {
                         background: None,
-                        text_color: estilos::TEXTO_SIDEBAR,
+                        text_color: estilos::TEXTO_BARRA_SUPERIOR,
                         border: Border::default(),
                         ..Default::default()
                     })
@@ -835,131 +873,9 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
         left: 10.0,
     })
     .style(|_theme| container::Style {
-        background: Some(Background::Color(estilos::FONDO_SIDEBAR)),
+        background: Some(Background::Color(estilos::FONDO_BARRA_SUPERIOR)),
         border: Border::default(),
         ..Default::default()
     })
     .into()
 }
-
-// fn sidebar(estado: &Estado) -> Element<'static, Message> {
-//     let color_gastos = if estado.pantalla == Pantalla::Gastos {
-//         estilos::FONDO_GASTOS
-//     } else {
-//         estilos::BOTONES_SIDEBAR_INACTIVOS
-//     };
-//
-//     let color_analisis = if estado.pantalla == Pantalla::Analisis {
-//         estilos::FONDO_ANALISIS
-//     } else {
-//         estilos::BOTONES_SIDEBAR_INACTIVOS
-//     };
-//
-//     let color_configuracion = if estado.pantalla == Pantalla::Configuracion {
-//         estilos::FONDO_CONFIGURACION
-//     } else {
-//         estilos::BOTONES_SIDEBAR_INACTIVOS
-//     };
-//
-//     container(
-//         column![
-//             container(
-//                 button("Gastos")
-//                     .on_press(Message::MostrarGastos)
-//                     .style(|_theme, _status| button::Style {
-//                         background: None,
-//                         text_color: estilos::TEXTO_SIDEBAR,
-//                         border: Border::default(),
-//                         ..Default::default()
-//                     })
-//             )
-//             .width(Length::Fill)
-//             .padding([10, 20])
-//             .style(move |_theme| container::Style {
-//                 background: Some(Background::Color(color_gastos)),
-//                 border: Border {
-//                     color: color_gastos,
-//                     width: 1.0,
-//                     radius: Radius {
-//                         top_left: 14.0,
-//                         top_right: 0.0,
-//                         bottom_right: 0.0,
-//                         bottom_left: 14.0,
-//                     },
-//                 },
-//                 ..Default::default()
-//             }),
-//
-//             container(
-//                 button("Analisis")
-//                     .on_press(Message::MostrarAnalisis)
-//                     .style(|_theme, _status| button::Style {
-//                         background: None,
-//                         text_color: estilos::TEXTO_SIDEBAR,
-//                         border: Border::default(),
-//                         ..Default::default()
-//                     })
-//             )
-//             .width(Length::Fill)
-//             .padding([10, 20])
-//             .style(move |_theme| container::Style {
-//                 background: Some(Background::Color(color_analisis)),
-//                 border: Border {
-//                     color: color_analisis,
-//                     width: 1.0,
-//                     radius: Radius {
-//                         top_left: 14.0,
-//                         top_right: 0.0,
-//                         bottom_right: 0.0,
-//                         bottom_left: 14.0,
-//                     },
-//                 },
-//                 ..Default::default()
-//             }),
-//
-//             container(
-//                 button("Configuracion")
-//                     .on_press(Message::MostrarConfiguracion)
-//                     .style(|_theme, _status| button::Style {
-//                         background: None,
-//                         text_color: estilos::TEXTO_SIDEBAR,
-//                         border: Border::default(),
-//                         ..Default::default()
-//                     })
-//             )
-//             .width(Length::Fill)
-//             .padding([10, 20])
-//             .style(move |_theme| container::Style {
-//                 background: Some(Background::Color(color_configuracion)),
-//                 border: Border {
-//                     color: color_configuracion,
-//                     width: 1.0,
-//                     radius: Radius {
-//                         top_left: 14.0,
-//                         top_right: 0.0,
-//                         bottom_right: 0.0,
-//                         bottom_left: 14.0,
-//                     },
-//                 },
-//                 ..Default::default()
-//             }),
-//         ]
-//         .spacing(20)
-//         .align_x(Alignment::Center),
-//     )
-//     .width(Length::Fixed(180.0))
-//     .height(Length::Fill)
-//     .padding(iced::Padding {
-//         left: 25.0,
-//         right: 0.0,
-//         top: 0.0,
-//         bottom: 0.0,
-//     })
-//     .center_x(Length::Fixed(180.0))
-//     .center_y(Length::Fill)
-//     .style(|_theme| container::Style {
-//         background: Some(Background::Color(estilos::FONDO_SIDEBAR)),
-//         ..Default::default()
-//     })
-//     .into()
-// }
