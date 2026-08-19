@@ -506,6 +506,17 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                 Some(estado.dia),
                 Message::DiaSeleccionado,
             )
+            .style(|_theme, _status| pick_list::Style {
+                text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                background: Background::Color(estilos::FONDO_GASTOS),
+                placeholder_color: estilos::GASTOS_TEXTO_SELECTOR,
+                handle_color: estilos::GASTOS_TEXTO_SELECTOR,
+                border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                }
+            })
             .menu_style(|_theme| menu::Style {
                 text_color: estilos::GASTOS_TEXTO_SELECTOR,
                 background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
@@ -520,6 +531,17 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                 Some(nombre_mes(estado.mes_fecha)),
                 |mes| Message::MesFechaSeleccionado(mes.to_string()),
             )
+            .style(|_theme, _status| pick_list::Style {
+                text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                background: Background::Color(estilos::FONDO_GASTOS),
+                placeholder_color: estilos::GASTOS_TEXTO_SELECTOR,
+                handle_color: estilos::GASTOS_TEXTO_SELECTOR,
+                border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                }
+            })
             .menu_style(|_theme| menu::Style {
                 text_color: estilos::GASTOS_TEXTO_SELECTOR,
                 background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
@@ -534,6 +556,17 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                 Some(estado.anio_fecha),
                 Message::AnioSeleccionado,
             )
+            .style(|_theme, _status| pick_list::Style {
+                text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                background: Background::Color(estilos::FONDO_GASTOS),
+                placeholder_color: estilos::GASTOS_TEXTO_SELECTOR,
+                handle_color: estilos::GASTOS_TEXTO_SELECTOR,
+                border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                }
+            })
             .menu_style(|_theme| menu::Style {
                 text_color: estilos::GASTOS_TEXTO_SELECTOR,
                 background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
@@ -548,17 +581,52 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
 
         text_input("Monto", &estado.monto)
             .on_input(Message::MontoCambiado)
-            .width(Length::Fixed(200.0)),
+            .width(Length::Fixed(200.0))
+            .style(|_theme, _status| text_input::Style {
+                background: Background::Color(estilos::FONDO_GASTOS),
+                border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                },
+                icon: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                placeholder: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                value: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                selection: estilos::GASTOS_TEXTO_SELECTOR,
+            }),
 
         text_input("Descripcion", &estado.descripcion)
             .on_input(Message::DescripcionCambiada)
-            .width(Length::Fixed(200.0)),
+            .width(Length::Fixed(200.0))
+            .style(|_theme, _status| text_input::Style {
+                background: Background::Color(estilos::FONDO_GASTOS),
+                border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                },
+                icon: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                placeholder: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                value: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                selection: estilos::GASTOS_TEXTO_SELECTOR,
+            }),
 
         pick_list(
             estado.categorias.clone(),
             estado.categoria.clone(),
             Message::CategoriaSeleccionada,
         )
+        .style(|_theme, _status| pick_list::Style {
+            text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+            background: Background::Color(estilos::FONDO_GASTOS),
+            placeholder_color: estilos::GASTOS_TEXTO_SELECTOR,
+            handle_color: estilos::GASTOS_TEXTO_SELECTOR,
+            border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                }
+        })
         .menu_style(|_theme| menu::Style {
             text_color: estilos::GASTOS_TEXTO_SELECTOR,
             background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
@@ -573,6 +641,17 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
             estado.persona.clone(),
             Message::PersonaSeleccionada,
         )
+        .style(|_theme, _status| pick_list::Style {
+            text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+            background: Background::Color(estilos::FONDO_GASTOS),
+            placeholder_color: estilos::GASTOS_TEXTO_SELECTOR,
+            handle_color: estilos::GASTOS_TEXTO_SELECTOR,
+            border: Border {
+                    color: estilos::BORDE_TABLA_GASTOS,
+                    width: 1.0,
+                    radius: 8.0.into(),
+                }
+        })
         .menu_style(|_theme| menu::Style {
             text_color: estilos::GASTOS_TEXTO_SELECTOR,
             background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
@@ -667,58 +746,96 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             })
             .menu_style(|_theme| menu::Style {
                 text_color: estilos::GASTOS_TEXTO_SELECTOR,
-                background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
+                background: Background::Color(
+                    estilos::GASTOS_TEXTO_SELECTOR_FONDO
+                ),
                 border: Border::default(),
-                selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-                selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
+                selected_text_color:
+                    estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+                selected_background:
+                    Background::Color(
+                        estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO
+                    ),
                 shadow: Shadow::default(),
             });
 
             let botones = if estado.gasto_seleccionado.is_some() {
                 row![
-                    Space::new().width(Length::Fill),
                     button("Editar")
                         .on_press(Message::EditarGasto)
                         .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                            text_color: estilos::GASTOS_TEXTO_BOTONES,
+                            background: Some(
+                                Background::Color(
+                                    estilos::FONDO_BOTONES_GASTOS
+                                )
+                            ),
+                            text_color:
+                                estilos::GASTOS_TEXTO_BOTONES,
                             border: Border::default(),
                             ..Default::default()
                         }),
+
                     button("Eliminar")
                         .on_press(Message::EliminarGasto)
                         .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                            text_color: estilos::GASTOS_TEXTO_BOTONES,
+                            background: Some(
+                                Background::Color(
+                                    estilos::FONDO_BOTONES_GASTOS
+                                )
+                            ),
+                            text_color:
+                                estilos::GASTOS_TEXTO_BOTONES,
                             border: Border::default(),
                             ..Default::default()
                         }),
-                   Space::new().width(Length::Fill),
                 ]
                 .spacing(10)
             } else {
                 row![
-                    Space::new().width(Length::Fill),
                     button("+ Agregar gasto")
                         .on_press(Message::MostrarFormulario)
                         .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                            text_color: estilos::GASTOS_TEXTO_BOTONES,
+                            background: Some(
+                                Background::Color(
+                                    estilos::FONDO_BOTONES_GASTOS
+                                )
+                            ),
+                            text_color:
+                                estilos::GASTOS_TEXTO_BOTONES,
                             border: Border::default(),
                             ..Default::default()
                         }),
-                   Space::new().width(Length::Fill),
                 ]
             };
 
-            let centro = column![
-                Space::new().height(Length::Fill),
+            let contenido = column![
+                column![
+                    selector_mes,
+
+                    container(Space::new())
+                        .width(Length::Fixed(165.0))
+                        .height(Length::Fixed(1.0))
+                        .style(|_theme| container::Style {
+                            background: Some(
+                                Background::Color(
+                                    estilos::GASTOS_TEXTO_MES
+                                )
+                            ),
+                            ..Default::default()
+                        }),
+                ]
+                .spacing(3),
+
                 container(tabla_gastos(estado))
                     .width(Length::Fill)
-                    .height(Length::Fixed(500.0))
+                    .height(Length::Fill)
                     .padding(10)
                     .style(|_theme| container::Style {
-                        background: Some(Background::Color(estilos::FONDO_TABLA_GASTOS)),
+                        background: Some(
+                            Background::Color(
+                                estilos::FONDO_TABLA_GASTOS
+                            )
+                        ),
                         border: Border {
                             color: estilos::BORDE_TABLA_GASTOS,
                             width: 1.0,
@@ -728,10 +845,14 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                     }),
 
                 container(botones)
-                    .width(Length::Fixed(200.0))
+                    .width(Length::Shrink)
                     .padding(10)
                     .style(|_theme| container::Style {
-                        background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
+                        background: Some(
+                            Background::Color(
+                                estilos::FONDO_BOTONES_GASTOS
+                            )
+                        ),
                         border: Border {
                             color: estilos::BORDE_BOTONES_GASTOS,
                             width: 1.0,
@@ -739,38 +860,20 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                         },
                         ..Default::default()
                     }),
-
-                    Space::new().height(Length::Fill),
             ]
             .spacing(20)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(Alignment::Center);
 
-            let contenido = row![
-                column![
-                    selector_mes,
-                    container(Space::new())
-                        .width(Length::Fixed(165.0))
-                        .height(Length::Fixed(1.0))
-                        .style(|_theme| container::Style {
-                            background: Some(Background::Color(estilos::GASTOS_TEXTO_MES)),
-                            ..Default::default()
-                        }),
-                ]
-                .spacing(3),
-
-                container(centro)
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            ];
-
             container(contenido)
                 .padding(30)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .style(|_theme| container::Style {
-                    background: Some(Background::Color(estilos::FONDO_GASTOS)),
+                    background: Some(
+                        Background::Color(estilos::FONDO_GASTOS)
+                    ),
                     ..Default::default()
                 })
                 .into()
@@ -1009,7 +1112,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
         .width(Length::FillPortion(1))
         .style(estilo_encabezado),
     ]
-    .spacing(10);
+    .spacing(5);
 
     let mut filas = column![]
         .spacing(5);
@@ -1017,7 +1120,8 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
     for indice in indices {
         let gasto = &estado.gastos[indice];
 
-        let seleccionado = estado.gasto_seleccionado == Some(gasto.id);
+        let seleccionado =
+            estado.gasto_seleccionado == Some(gasto.id);
 
         let fila = row![
             text(&gasto.descripcion)
@@ -1048,14 +1152,24 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             .style(move |_theme, _status| {
                 if seleccionado {
                     button::Style {
-                        background: Some(Background::Color(estilos::FONDO_FILA_SELECCIONADA)),
-                        text_color: estilos::TEXTO_FILA_SELECCIONADA,
+                        background: Some(
+                            Background::Color(
+                                estilos::FONDO_FILA_SELECCIONADA
+                            )
+                        ),
+                        text_color:
+                            estilos::TEXTO_FILA_SELECCIONADA,
                         ..Default::default()
                     }
                 } else {
                     button::Style {
-                        background: Some(Background::Color(estilos::FONDO_TABLA_GASTOS)),
-                        text_color: estilos::GASTOS_TEXTO_TABLA,
+                        background: Some(
+                            Background::Color(
+                                estilos::FONDO_TABLA_GASTOS
+                            )
+                        ),
+                        text_color:
+                            estilos::GASTOS_TEXTO_TABLA,
                         ..Default::default()
                     }
                 }
@@ -1069,11 +1183,14 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             encabezado,
 
             scrollable(filas)
-                  .height(Length::Fill),
+                .height(Length::Fill),
         ]
-        .spacing(10),
+        .spacing(10)
+        .width(Length::Fill)
+        .height(Length::Fill),
     )
     .width(Length::Fill)
+    .height(Length::Fill)
     .into()
 }
 

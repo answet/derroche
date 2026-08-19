@@ -686,6 +686,25 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
     }
 }
 
+// fn view(estado: &Estado) -> Element<'_, Message> {
+//     let contenido = match estado.pantalla {
+//         Pantalla::Gastos => gastos::view(&estado.gastos).map(Message::Gastos),
+//         Pantalla::Analisis => analisis::view(&estado.analisis).map(Message::Analisis),
+//         Pantalla::Configuracion => configuracion::view(&estado.configuracion).map(Message::Configuracion),
+//     };
+//
+//     row![
+//         sidebar(estado),
+//
+//         container(contenido)
+//             .width(Length::Fill)
+//             .height(Length::Fill)
+//     ]
+//     .width(Length::Fill)
+//     .height(Length::Fill)
+//     .into()
+// }
+
 fn view(estado: &Estado) -> Element<'_, Message> {
     let contenido = match estado.pantalla {
         Pantalla::Gastos => gastos::view(&estado.gastos).map(Message::Gastos),
@@ -693,8 +712,8 @@ fn view(estado: &Estado) -> Element<'_, Message> {
         Pantalla::Configuracion => configuracion::view(&estado.configuracion).map(Message::Configuracion),
     };
 
-    row![
-        sidebar(estado),
+    column![
+        barra_navegacion(estado),
 
         container(contenido)
             .width(Length::Fill)
@@ -705,7 +724,7 @@ fn view(estado: &Estado) -> Element<'_, Message> {
     .into()
 }
 
-fn sidebar(estado: &Estado) -> Element<'static, Message> {
+fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
     let color_gastos = if estado.pantalla == Pantalla::Gastos {
         estilos::FONDO_GASTOS
     } else {
@@ -725,7 +744,7 @@ fn sidebar(estado: &Estado) -> Element<'static, Message> {
     };
 
     container(
-        column![
+        row![
             container(
                 button("Gastos")
                     .on_press(Message::MostrarGastos)
@@ -736,18 +755,17 @@ fn sidebar(estado: &Estado) -> Element<'static, Message> {
                         ..Default::default()
                     })
             )
-            .width(Length::Fill)
-            .padding([10, 20])
+            .padding([8, 16])
             .style(move |_theme| container::Style {
                 background: Some(Background::Color(color_gastos)),
                 border: Border {
                     color: color_gastos,
-                    width: 1.0,
+                    width: 0.0,
                     radius: Radius {
                         top_left: 14.0,
-                        top_right: 0.0,
+                        top_right: 14.0,
                         bottom_right: 0.0,
-                        bottom_left: 14.0,
+                        bottom_left: 0.0,
                     },
                 },
                 ..Default::default()
@@ -763,18 +781,17 @@ fn sidebar(estado: &Estado) -> Element<'static, Message> {
                         ..Default::default()
                     })
             )
-            .width(Length::Fill)
-            .padding([10, 20])
+            .padding([8, 16])
             .style(move |_theme| container::Style {
                 background: Some(Background::Color(color_analisis)),
                 border: Border {
                     color: color_analisis,
-                    width: 1.0,
+                    width: 0.0,
                     radius: Radius {
                         top_left: 14.0,
-                        top_right: 0.0,
+                        top_right: 14.0,
                         bottom_right: 0.0,
-                        bottom_left: 14.0,
+                        bottom_left: 0.0,
                     },
                 },
                 ..Default::default()
@@ -790,39 +807,159 @@ fn sidebar(estado: &Estado) -> Element<'static, Message> {
                         ..Default::default()
                     })
             )
-            .width(Length::Fill)
-            .padding([10, 20])
+            .padding([8, 16])
             .style(move |_theme| container::Style {
                 background: Some(Background::Color(color_configuracion)),
                 border: Border {
                     color: color_configuracion,
-                    width: 1.0,
+                    width: 0.0,
                     radius: Radius {
                         top_left: 14.0,
-                        top_right: 0.0,
+                        top_right: 14.0,
                         bottom_right: 0.0,
-                        bottom_left: 14.0,
+                        bottom_left: 0.0,
                     },
                 },
                 ..Default::default()
             }),
         ]
-        .spacing(20)
-        .align_x(Alignment::Center),
+        .spacing(10)
+        .align_y(Alignment::End),
     )
-    .width(Length::Fixed(180.0))
-    .height(Length::Fill)
+    .width(Length::Fill)
+    .height(Length::Shrink)
     .padding(iced::Padding {
-        left: 25.0,
-        right: 0.0,
-        top: 0.0,
+        top: 10.0,
+        right: 10.0,
         bottom: 0.0,
+        left: 10.0,
     })
-    .center_x(Length::Fixed(180.0))
-    .center_y(Length::Fill)
     .style(|_theme| container::Style {
         background: Some(Background::Color(estilos::FONDO_SIDEBAR)),
+        border: Border::default(),
         ..Default::default()
     })
     .into()
 }
+
+// fn sidebar(estado: &Estado) -> Element<'static, Message> {
+//     let color_gastos = if estado.pantalla == Pantalla::Gastos {
+//         estilos::FONDO_GASTOS
+//     } else {
+//         estilos::BOTONES_SIDEBAR_INACTIVOS
+//     };
+//
+//     let color_analisis = if estado.pantalla == Pantalla::Analisis {
+//         estilos::FONDO_ANALISIS
+//     } else {
+//         estilos::BOTONES_SIDEBAR_INACTIVOS
+//     };
+//
+//     let color_configuracion = if estado.pantalla == Pantalla::Configuracion {
+//         estilos::FONDO_CONFIGURACION
+//     } else {
+//         estilos::BOTONES_SIDEBAR_INACTIVOS
+//     };
+//
+//     container(
+//         column![
+//             container(
+//                 button("Gastos")
+//                     .on_press(Message::MostrarGastos)
+//                     .style(|_theme, _status| button::Style {
+//                         background: None,
+//                         text_color: estilos::TEXTO_SIDEBAR,
+//                         border: Border::default(),
+//                         ..Default::default()
+//                     })
+//             )
+//             .width(Length::Fill)
+//             .padding([10, 20])
+//             .style(move |_theme| container::Style {
+//                 background: Some(Background::Color(color_gastos)),
+//                 border: Border {
+//                     color: color_gastos,
+//                     width: 1.0,
+//                     radius: Radius {
+//                         top_left: 14.0,
+//                         top_right: 0.0,
+//                         bottom_right: 0.0,
+//                         bottom_left: 14.0,
+//                     },
+//                 },
+//                 ..Default::default()
+//             }),
+//
+//             container(
+//                 button("Analisis")
+//                     .on_press(Message::MostrarAnalisis)
+//                     .style(|_theme, _status| button::Style {
+//                         background: None,
+//                         text_color: estilos::TEXTO_SIDEBAR,
+//                         border: Border::default(),
+//                         ..Default::default()
+//                     })
+//             )
+//             .width(Length::Fill)
+//             .padding([10, 20])
+//             .style(move |_theme| container::Style {
+//                 background: Some(Background::Color(color_analisis)),
+//                 border: Border {
+//                     color: color_analisis,
+//                     width: 1.0,
+//                     radius: Radius {
+//                         top_left: 14.0,
+//                         top_right: 0.0,
+//                         bottom_right: 0.0,
+//                         bottom_left: 14.0,
+//                     },
+//                 },
+//                 ..Default::default()
+//             }),
+//
+//             container(
+//                 button("Configuracion")
+//                     .on_press(Message::MostrarConfiguracion)
+//                     .style(|_theme, _status| button::Style {
+//                         background: None,
+//                         text_color: estilos::TEXTO_SIDEBAR,
+//                         border: Border::default(),
+//                         ..Default::default()
+//                     })
+//             )
+//             .width(Length::Fill)
+//             .padding([10, 20])
+//             .style(move |_theme| container::Style {
+//                 background: Some(Background::Color(color_configuracion)),
+//                 border: Border {
+//                     color: color_configuracion,
+//                     width: 1.0,
+//                     radius: Radius {
+//                         top_left: 14.0,
+//                         top_right: 0.0,
+//                         bottom_right: 0.0,
+//                         bottom_left: 14.0,
+//                     },
+//                 },
+//                 ..Default::default()
+//             }),
+//         ]
+//         .spacing(20)
+//         .align_x(Alignment::Center),
+//     )
+//     .width(Length::Fixed(180.0))
+//     .height(Length::Fill)
+//     .padding(iced::Padding {
+//         left: 25.0,
+//         right: 0.0,
+//         top: 0.0,
+//         bottom: 0.0,
+//     })
+//     .center_x(Length::Fixed(180.0))
+//     .center_y(Length::Fill)
+//     .style(|_theme| container::Style {
+//         background: Some(Background::Color(estilos::FONDO_SIDEBAR)),
+//         ..Default::default()
+//     })
+//     .into()
+// }

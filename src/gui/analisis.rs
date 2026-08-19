@@ -90,18 +90,26 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     })
     .menu_style(|_theme| menu::Style {
         text_color: estilos::GASTOS_TEXTO_SELECTOR,
-        background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
+        background: Background::Color(
+            estilos::GASTOS_TEXTO_SELECTOR_FONDO
+        ),
         border: Border::default(),
-        selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-        selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
+        selected_text_color:
+            estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+        selected_background:
+            Background::Color(
+                estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO
+            ),
         shadow: Shadow::default(),
     });
 
     let mayor_gasto = match &estado.mayor_gasto {
         Some(gasto) => {
             column![
-                text(formatear_monto(gasto.monto)).size(24),
-                text(&gasto.descripcion).size(14),
+                text(formatear_monto(gasto.monto))
+                    .size(24),
+                text(&gasto.descripcion)
+                    .size(14),
             ]
             .spacing(4)
         }
@@ -109,7 +117,8 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         None => {
             column![
                 text("$0.00"),
-                text("Sin gastos").size(14),
+                text("Sin gastos")
+                    .size(14),
             ]
             .spacing(4)
         }
@@ -132,72 +141,71 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 format!("{:+.1}%", estado.diferencia_mes),
             ),
         ]
-        .spacing(20)
+        .spacing(40)
     )
-    .width(Length::Fill)
-    .center_x(Length::Fill);
+    .width(Length::Shrink)
+    .center_x(Length::Shrink)
+    .center_y(Length::Fill);
 
     let evolucion = grafico_evolucion(estado);
-
     let categorias = grafico_categorias(estado);
-
     let personas = grafico_personas(estado);
+
+    let encabezado = column![
+        container(selector_mes)
+            .width(Length::Fill)
+            .center_x(Length::Fill),
+
+        container(resumen)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+    ]
+    .spacing(20)
+    .width(Length::Fill)
+    .height(Length::FillPortion(1));
+
+    let graficos = row![
+        container(evolucion)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+
+        container(
+            column![
+                categorias,
+                personas,
+            ]
+            .spacing(50)
+            .align_x(Alignment::Center)
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill),
+    ]
+    .spacing(30)
+    .width(Length::Fill)
+    .height(Length::FillPortion(3));
 
     container(
         column![
-            row![
-                container(
-                    column![
-                        container(selector_mes)
-                            .height(Length::Fill)
-                            .center_x(Length::Fill)
-                            .center_y(Length::Fill),
-
-                        container(resumen)
-                            .height(Length::Fill)
-                            .center_x(Length::Fill)
-                            .center_y(Length::Fill),
-                    ]
-                    .spacing(20)
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill),
-
-            row![
-                container(evolucion)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x(Length::Fill)
-                    .center_y(Length::Fill),
-
-                container(
-                    column![
-                        categorias,
-                        personas,
-                    ]
-                    .spacing(50)
-                    .align_x(Alignment::Center)
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill),
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill),
+            encabezado,
+            graficos,
         ]
+        .spacing(20)
         .width(Length::Fill)
-        .spacing(30)
-        .align_x(Alignment::Center),
+        .height(Length::Fill),
     )
     .width(Length::Fill)
     .height(Length::Fill)
-    .padding(10)
+    .padding(30)
     .style(|_theme| container::Style {
-        background: Some(Background::Color(estilos::FONDO_ANALISIS)),
+        background: Some(
+            Background::Color(estilos::FONDO_ANALISIS)
+        ),
         ..Default::default()
     })
     .into()
