@@ -30,9 +30,9 @@ pub fn run() -> iced::Result {
         .expect("No se pudo cargar el icono");
 
     iced::application(inicializar, update, view)
+        .title("Derroche")
         .window(iced::window::Settings {
             icon: Some(icono),
-
             ..Default::default()
         })
         .run()
