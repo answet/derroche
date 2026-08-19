@@ -208,7 +208,6 @@ pub fn obtener_gastos_detalle(conn: &Connection) -> rusqlite::Result<Vec<GastoDe
             ON gastos.categoria_id = categorias.id
         JOIN personas
             ON gastos.persona_id = personas.id
-        ORDER BY gastos.fecha DESC, gastos.id DESC
         "
         )?;
 

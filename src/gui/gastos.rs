@@ -985,7 +985,7 @@ fn cargar_gastos() -> Result<Vec<GastoDetalle>, String> {
 }
 
 fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
-    let mut indices: Vec<usize> = estado
+    let mut indices: Vec<(usize, NaiveDate)> = estado
         .gastos
         .iter()
         .enumerate()
@@ -999,16 +999,16 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             if fecha.month() == estado.mes
                 && fecha.year() as u32 == estado.anio
             {
-                Some(indice)
+                Some((indice, fecha))
             } else {
                 None
             }
         })
         .collect();
 
-    indices.sort_by(|&a, &b| {
-        let gasto_a = &estado.gastos[a];
-        let gasto_b = &estado.gastos[b];
+    indices.sort_by(|(indice_a, fecha_a), (indice_b, fecha_b)| {
+        let gasto_a = &estado.gastos[*indice_a];
+        let gasto_b = &estado.gastos[*indice_b];
 
         let orden = match estado.columna_orden {
             ColumnaOrden::Descripcion => {
@@ -1031,17 +1031,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
             }
 
             ColumnaOrden::Fecha => {
-                let fecha_a = NaiveDate::parse_from_str(
-                    &gasto_a.fecha,
-                    "%d-%m-%Y",
-                );
-
-                let fecha_b = NaiveDate::parse_from_str(
-                    &gasto_b.fecha,
-                    "%d-%m-%Y",
-                );
-
-                fecha_a.into_iter().cmp(fecha_b)
+               fecha_a.cmp(fecha_b) 
             }
         };
 
@@ -1117,7 +1107,7 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
     let mut filas = column![]
         .spacing(5);
 
-    for indice in indices {
+    for (indice, _) in indices {
         let gasto = &estado.gastos[indice];
 
         let seleccionado =

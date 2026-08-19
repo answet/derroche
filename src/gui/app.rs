@@ -1,3 +1,5 @@
+use rusqlite::Connection;
+
 use iced::widget::{button, column, row, container, svg, text};
 use iced::{Element, Task, Length, Alignment, Background, Border};
 use iced::border::Radius;
@@ -144,13 +146,18 @@ type DatosCargados = (
     Vec<GastoDetalle>,
 );
 
-fn cargar_datos() -> Result<DatosCargados, String> {
-    let conexion =
-        crate::database::conectar()
-            .map_err(|error| error.to_string())?;
+fn conectar_db() -> Result<Connection, String> {
+    let conexion = crate::database::conectar()
+        .map_err(|error| error.to_string())?;
 
     crate::database::inicializar_db(&conexion)
         .map_err(|error| error.to_string())?;
+
+    Ok(conexion)
+}
+
+fn cargar_datos() -> Result<DatosCargados, String> {
+    let conexion = conectar_db()?;
 
     let categorias =
         crate::repository::obtener_categorias(&conexion)
@@ -181,12 +188,7 @@ fn cargar_datos_analisis(
     anio: i32,
 ) -> Result<DatosAnalisis, String> {
 
-    let conexion =
-        crate::database::conectar()
-            .map_err(|error| error.to_string())?;
-
-    crate::database::inicializar_db(&conexion)
-        .map_err(|error| error.to_string())?;
+    let conexion = conectar_db()?;
 
     let total_mes =
         crate::repository::obtener_total_mes(&conexion, mes, anio)
@@ -251,12 +253,7 @@ fn cargar_datos_configuracion()
         String,
     >
 {
-    let conexion =
-        crate::database::conectar()
-            .map_err(|error| error.to_string())?;
-
-    crate::database::inicializar_db(&conexion)
-        .map_err(|error| error.to_string())?;
+    let conexion = conectar_db()?;
 
     let configuracion =
         crate::repository::obtener_configuracion(&conexion)
@@ -502,9 +499,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
                     Task::perform(
                         async move {
-                            let conexion =
-                                crate::database::conectar()
-                                    .map_err(|error| error.to_string())?;
+                            let conexion = conectar_db()?;
 
                             crate::repository::actualizar_configuracion(
                                 &conexion,
@@ -541,9 +536,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
                     Task::perform(
                         async move {
-                            let conexion =
-                                crate::database::conectar()
-                                    .map_err(|error| error.to_string())?;
+                            let conexion = conectar_db()?;
 
                             crate::repository::agregar_categoria(
                                 &conexion,
@@ -581,9 +574,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
                     Task::perform(
                         async move {
-                            let conexion =
-                                crate::database::conectar()
-                                    .map_err(|error| error.to_string())?;
+                            let conexion = conectar_db()?;
 
                             crate::repository::agregar_persona(
                                 &conexion,
@@ -612,9 +603,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                 configuracion::Message::EliminarCategoria(id) => {
                     Task::perform(
                         async move {
-                            let conexion =
-                                crate::database::conectar()
-                                    .map_err(|error| error.to_string())?;
+                            let conexion = conectar_db()?;
 
                             crate::repository::eliminar_categoria(
                                 &conexion,
@@ -643,9 +632,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                 configuracion::Message::EliminarPersona(id) => {
                     Task::perform(
                         async move {
-                            let conexion =
-                                crate::database::conectar()
-                                    .map_err(|error| error.to_string())?;
+                            let conexion = conectar_db()?;
 
                             crate::repository::eliminar_persona(
                                 &conexion,

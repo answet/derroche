@@ -30,8 +30,6 @@ pub fn conectar() -> Result<Connection> {
 pub fn inicializar_db(conexion: &Connection) -> rusqlite::Result<()> {
     conexion.execute_batch(
         "
-        PRAGMA foreign_keys = ON;
-
         CREATE TABLE IF NOT EXISTS categorias (
             id INTEGER PRIMARY KEY,
             nombre TEXT NOT NULL UNIQUE
