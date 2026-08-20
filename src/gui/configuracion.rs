@@ -35,12 +35,10 @@ pub struct Estado {
     pub nueva_categoria: String,
     pub nueva_persona: String,
 
-    pub actualizacion_disponible: Option<String>,
+    pub actualizacion_disponible: Option<(String, Option<String>)>,
     pub buscando_actualizacion: bool,
-    pub error_actualizacion: Option<String>,
     pub busqueda_actualizacion_realizada: bool,
-    pub url_actualizacion: Option<String>,
-    pub descargando_actualizacion: bool,
+    pub error_actualizacion: Option<String>,
 }
 
 impl Default for Estado {
@@ -57,10 +55,8 @@ impl Default for Estado {
 
             actualizacion_disponible: None,
             buscando_actualizacion: false,
-            error_actualizacion: None,
             busqueda_actualizacion_realizada: false,
-            url_actualizacion: None,
-            descargando_actualizacion: false,
+            error_actualizacion: None,
         }
     }
 }
@@ -85,8 +81,13 @@ pub enum Message {
     PersonaNombreCambiado(String),
 
     BuscarActualizacion,
-    ActualizacionEncontrada(Result<Option<(String, String)>, String>),
+    ActualizacionEncontrada(
+        Result<Option<(String, Option<String>)>, String>
+    ),
+
+    #[cfg(target_os = "windows")]
     DescargarActualizacion,
+    #[cfg(target_os = "windows")]
     ActualizacionDescargada(Result<std::path::PathBuf, String>),
 }
 
@@ -147,12 +148,12 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             estado.buscando_actualizacion = true;
             estado.busqueda_actualizacion_realizada = false;
             estado.actualizacion_disponible = None;
-            estado.url_actualizacion = None;
             estado.error_actualizacion = None;
 
-            Task::perform(crate::updater::buscar_actualizacion(), |resultado| {
-                Message::ActualizacionEncontrada(resultado)
-            })
+            Task::perform(
+                crate::updater::buscar_actualizacion(),
+                Message::ActualizacionEncontrada,
+            )
         }
 
         Message::ActualizacionEncontrada(resultado) => {
@@ -160,19 +161,11 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             estado.busqueda_actualizacion_realizada = true;
 
             match resultado {
-                Ok(Some((version, url))) => {
-                    estado.actualizacion_disponible = Some(version);
-                    estado.url_actualizacion = Some(url);
-                }
-
-                Ok(None) => {
-                    estado.actualizacion_disponible = None;
-                    estado.url_actualizacion = None;
+                Ok(actualizacion) => {
+                    estado.actualizacion_disponible = actualizacion;
                 }
 
                 Err(error) => {
-                    estado.actualizacion_disponible = None;
-                    estado.url_actualizacion = None;
                     estado.error_actualizacion = Some(error);
                 }
             }
@@ -180,32 +173,34 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             Task::none()
         }
 
+        #[cfg(target_os = "windows")]
         Message::DescargarActualizacion => {
-            let Some(url) = estado.url_actualizacion.clone() else {
-                return Task::none();
-            };
-
-            estado.descargando_actualizacion = true;
-            estado.error_actualizacion = None;
-
-            Task::perform(crate::updater::descargar_actualizacion(url), |resultado| {
-                Message::ActualizacionDescargada(resultado)
-            })
+            if let Some((_, Some(url))) =
+                estado.actualizacion_disponible.clone()
+            {
+                Task::perform(
+                    crate::updater::descargar_actualizacion(url),
+                    Message::ActualizacionDescargada,
+                )
+            } else {
+                Task::none()
+            }
         }
 
+        #[cfg(target_os = "windows")]
         Message::ActualizacionDescargada(resultado) => {
-            estado.descargando_actualizacion = false;
-
             match resultado {
-                Ok(ruta) => match crate::updater::ejecutar_instalador(ruta) {
-                    Ok(()) => {
-                        std::process::exit(0);
+                Ok(ruta) => {
+                    if let Err(error) =
+                        std::process::Command::new(&ruta).spawn()
+                    {
+                        estado.error_actualizacion = Some(
+                            format!(
+                                "No se pudo ejecutar el instalador: {error}"
+                            )
+                        );
                     }
-
-                    Err(error) => {
-                        estado.error_actualizacion = Some(error);
-                    }
-                },
+                }
 
                 Err(error) => {
                     estado.error_actualizacion = Some(error);
@@ -376,80 +371,97 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     )
     .width(Length::Fixed(250.0));
 
-    let actualizaciones = container(
-        column![
-            text("Actualizaciones").size(24),
-            text(format!("Versión actual: {}", env!("CARGO_PKG_VERSION"))),
-            button(if estado.buscando_actualizacion {
-                "Buscando..."
-            } else {
-                "Buscar actualizaciones"
-            })
-            .on_press_maybe(
-                if estado.buscando_actualizacion || estado.descargando_actualizacion {
-                    None
-                } else {
-                    Some(Message::BuscarActualizacion)
-                }
-            )
-            .style(|_theme, _status| button::Style {
-                background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
-                text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-                ..Default::default()
-            }),
-            if estado.busqueda_actualizacion_realizada {
-                match &estado.actualizacion_disponible {
-                    Some(version) => column![
-                        text(format!("Hay una nueva versión disponible: {}", version)),
-                        button(if estado.descargando_actualizacion {
-                            "Descargando..."
-                        } else {
-                            "Descargar actualización"
-                        })
-                        .on_press_maybe(if estado.descargando_actualizacion {
-                            None
-                        } else {
-                            Some(Message::DescargarActualizacion)
-                        })
-                        .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(
-                                estilos::BOTONES_CONFIGURACION_AGREGAR,
-                            ),),
-                            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-                            ..Default::default()
-                        }),
-                    ]
-                    .spacing(10),
+    let contenido_actualizaciones = column![
+        text("Actualizaciones").size(24),
 
-                    None => {
-                        column![text("No hay actualizaciones disponibles.")]
-                    }
+        text(format!(
+            "Versión actual: {}",
+            env!("CARGO_PKG_VERSION")
+        )),
+
+        button(if estado.buscando_actualizacion {
+            "Buscando..."
+        } else {
+            "Buscar actualizaciones"
+        })
+        .on_press_maybe(if estado.buscando_actualizacion {
+            None
+        } else {
+            Some(Message::BuscarActualizacion)
+        })
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(
+                estilos::BOTONES_CONFIGURACION_AGREGAR
+            )),
+            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
+            ..Default::default()
+        }),
+
+        if estado.busqueda_actualizacion_realizada {
+            match &estado.actualizacion_disponible {
+                Some((version, _)) => {
+                    text(format!(
+                        "Hay una nueva versión disponible: {}",
+                        version
+                    ))
                 }
-            } else {
-                column![]
-            },
-            if let Some(error) = &estado.error_actualizacion {
-                text(format!("Error: {}", error))
-            } else {
-                text("")
-            },
-        ]
-        .spacing(15),
-    )
-    .width(Length::Fill);
+
+                None => {
+                    text("No hay actualizaciones disponibles.")
+                }
+            }
+        } else {
+            text("")
+        },
+    ]
+    .spacing(15);
+
+    #[cfg(target_os = "windows")]
+    let boton_descargar = button("Descargar actualización")
+        .on_press(Message::DescargarActualizacion)
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR)),
+            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
+            ..Default::default()
+        });
+
+    #[cfg(not(target_os = "windows"))]
+    let boton_descargar = text("");
+
+    let actualizaciones = if estado.actualizacion_disponible.is_some()
+    {
+        container(
+            column![
+                contenido_actualizaciones,
+                boton_descargar,
+            ]
+            .spacing(15),
+        )
+        .width(Length::Shrink)
+    } else {
+        container(contenido_actualizaciones)
+            .width(Length::Shrink)
+    };
 
     container(
         column![
             preferencias,
-            container(row![container(categorias), container(personas),].spacing(110),)
+
+            container(
+                row![
+                    container(categorias),
+                    container(personas),
+                ]
+                .spacing(110)
+            )
+            .width(Length::Fill)
+            .center_x(Length::Fill),
+
+            container(actualizaciones)
                 .width(Length::Fill)
-                .center_x(Length::Fill),
-            actualizaciones,
-            if let Some(error) = &estado.error_actualizacion {
-                text(format!("Error: {}", error))
-            } else {
-                text("")
-            },
+                .height(Length::Fill)
+                .align_x(Alignment::Start)
+                .align_y(Alignment::End),
         ]
         .spacing(30),
     )
