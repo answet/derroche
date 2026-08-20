@@ -137,7 +137,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             ),
 
             tarjeta(
-                "Diferencia",
+                "vs. mes anterior",
                 format!("{:+.1}%", estado.diferencia_mes),
             ),
         ]
@@ -336,7 +336,7 @@ fn grafico_evolucion(
         });
 
         let monto = if *valor > 0.0 {
-            text(format!("${:.0}", valor))
+            text(formatear_monto(*valor))
                 .size(11)
         } else {
             text("")
@@ -356,15 +356,19 @@ fn grafico_evolucion(
 
     container(
         column![
-            text("Evolución del gasto").size(20),
+            text("Evolución del gasto")
+                .size(20)
+                .width(Length::Fill)
+                .align_x(Alignment::Center),
+
             container(barras)
                 .height(Length::Fixed(280.0))
                 .width(Length::Fill)
+                .align_x(Alignment::Center)
                 .align_y(Alignment::End),
         ]
         .spacing(20)
     )
-    .width(Length::Fixed(500.0))
     .into()
 }
 
@@ -422,7 +426,7 @@ fn grafico_categorias(
 
                 barra,
 
-                text(format!("${:.0}", item.total))
+                text(formatear_monto(item.total))
                     .size(12),
             ]
             .spacing(10)
@@ -495,7 +499,7 @@ fn grafico_personas(
 
                 barra,
 
-                text(format!("${:.0}", item.total))
+                text(formatear_monto(item.total))
                     .size(12),
             ]
             .spacing(10)

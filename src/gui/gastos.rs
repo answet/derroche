@@ -467,7 +467,7 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
 fn formulario(estado: &Estado) -> Element<'_, Message> {
     let mensaje_error = match &estado.error {
-        Some(error) => text(error),
+        Some(error) => text(error).color(estilos::TEXTO_ERROR),
         None => text(""),
     };
 
@@ -809,22 +809,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             };
 
             let contenido = column![
-                column![
-                    selector_mes,
-
-                    container(Space::new())
-                        .width(Length::Fixed(165.0))
-                        .height(Length::Fixed(1.0))
-                        .style(|_theme| container::Style {
-                            background: Some(
-                                Background::Color(
-                                    estilos::GASTOS_TEXTO_MES
-                                )
-                            ),
-                            ..Default::default()
-                        }),
-                ]
-                .spacing(3),
+                selector_mes,
 
                 container(tabla_gastos(estado))
                     .width(Length::Fill)

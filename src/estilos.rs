@@ -40,6 +40,8 @@ pub const FONDO_FILA_SELECCIONADA: Color =
 pub const TEXTO_FILA_SELECCIONADA: Color =
     Color::from_rgb8(216, 222, 233);
 
+pub const TEXTO_ERROR: Color =
+    Color::from_rgb8(191, 97, 106);
 
 // --------------------------------------------------
 // Gastos - Mes
