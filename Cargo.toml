@@ -9,6 +9,8 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 chrono = "0.4"
 directories = "6"
 image = "0.25"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
 
 [build-dependencies]
 winresource = "0.1"

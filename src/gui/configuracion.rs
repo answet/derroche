@@ -60,6 +60,9 @@ pub struct Estado {
 
     pub nueva_categoria: String,
     pub nueva_persona: String,
+
+    pub actualizacion_disponible: Option<String>,
+    pub buscando_actualizacion: bool,
 }
 
 impl Default for Estado {
@@ -73,6 +76,9 @@ impl Default for Estado {
 
             nueva_categoria: String::new(),
             nueva_persona: String::new(),
+
+            actualizacion_disponible: None,
+            buscando_actualizacion: false,
         }
     }
 }
@@ -95,6 +101,9 @@ pub enum Message {
 
     CategoriaNombreCambiado(String),
     PersonaNombreCambiado(String),
+
+    BuscarActualizacion,
+    ActualizacionEncontrada(Result<Option<String>, String>),
 }
 
 pub fn update(
@@ -162,6 +171,32 @@ pub fn update(
 
         Message::PersonaNombreCambiado(nombre) => {
             estado.nueva_persona = nombre;
+            Task::none()
+        }
+
+        Message::BuscarActualizacion => {
+            estado.buscando_actualizacion = true;
+
+            Task::perform(
+                crate::updater::buscar_actualizacion(),
+                Message::ActualizacionEncontrada,
+            )
+        }
+
+        Message::ActualizacionEncontrada(resultado) => {
+            estado.buscando_actualizacion = false;
+
+            match resultado {
+                Ok(version) => {
+                    estado.actualizacion_disponible = version;
+                }
+
+                Err(error) => {
+                    println!("Error al buscar actualizaciones: {error}");
+                    estado.actualizacion_disponible = None;
+                }
+            }
+
             Task::none()
         }
     }
@@ -358,6 +393,60 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     )
     .width(Length::Fixed(250.0));
 
+    let actualizaciones = container(
+        column![
+            text("Actualizaciones").size(24),
+
+            text(format!(
+                "Versión actual: {}",
+                env!("CARGO_PKG_VERSION")
+            )),
+
+            button(
+                if estado.buscando_actualizacion {
+                    "Buscando..."
+                } else {
+                    "Buscar actualizaciones"
+                }
+            )
+            .on_press_maybe(
+                if estado.buscando_actualizacion {
+                    None
+                } else {
+                    Some(Message::BuscarActualizacion)
+                }
+            )
+            .style(|_theme, _status| button::Style {
+                background: Some(
+                    Background::Color(
+                        estilos::BOTONES_CONFIGURACION_AGREGAR
+                    )
+                ),
+                text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
+                ..Default::default()
+            }),
+
+            match &estado.actualizacion_disponible {
+                Some(version) => {
+                    text(format!(
+                        "Hay una nueva versión disponible: {}",
+                        version
+                    ))
+                }
+
+                None if !estado.buscando_actualizacion => {
+                    text("No hay actualizaciones disponibles.")
+                }
+
+                None => {
+                    text("")
+                }
+            },
+        ]
+        .spacing(15),
+    )
+    .width(Length::Fill);
+
     container(
         column![
             preferencias,
@@ -371,6 +460,8 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             )
             .width(Length::Fill)
             .center_x(Length::Fill),
+
+            actualizaciones,
         ]
         .spacing(30)
     )
