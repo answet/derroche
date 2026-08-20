@@ -1,40 +1,14 @@
-use iced::widget::{
-    button,
-    column,
-    container,
-    pick_list,
-    row,
-    text,
-    text_input,
-};
+use iced::widget::{button, column, container, pick_list, row, text, text_input};
 
-use iced::{
-    Alignment,
-    Element,
-    Length,
-    Task,
-    Background,
-    Border,
-    Shadow,
-};
+use iced::{Alignment, Background, Border, Element, Length, Shadow, Task};
 
-use crate::models::{
-    Categoria,
-    Configuracion,
-    Persona,
-};
+use crate::models::{Categoria, Configuracion, Persona};
 
 use iced::overlay::menu;
 
 use crate::estilos;
 
-const ANIOS: [i32; 5] = [
-    2026,
-    2027,
-    2028,
-    2029,
-    2030,
-];
+const ANIOS: [i32; 5] = [2026, 2027, 2028, 2029, 2030];
 
 const MESES: [&str; 12] = [
     "Enero",
@@ -63,6 +37,10 @@ pub struct Estado {
 
     pub actualizacion_disponible: Option<String>,
     pub buscando_actualizacion: bool,
+    pub error_actualizacion: Option<String>,
+    pub busqueda_actualizacion_realizada: bool,
+    pub url_actualizacion: Option<String>,
+    pub descargando_actualizacion: bool,
 }
 
 impl Default for Estado {
@@ -79,6 +57,10 @@ impl Default for Estado {
 
             actualizacion_disponible: None,
             buscando_actualizacion: false,
+            error_actualizacion: None,
+            busqueda_actualizacion_realizada: false,
+            url_actualizacion: None,
+            descargando_actualizacion: false,
         }
     }
 }
@@ -103,23 +85,16 @@ pub enum Message {
     PersonaNombreCambiado(String),
 
     BuscarActualizacion,
-    ActualizacionEncontrada(Result<Option<String>, String>),
+    ActualizacionEncontrada(Result<Option<(String, String)>, String>),
+    DescargarActualizacion,
+    ActualizacionDescargada(Result<std::path::PathBuf, String>),
 }
 
-pub fn update(
-    estado: &mut Estado,
-    mensaje: Message,
-) -> Task<Message> {
+pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
     match mensaje {
-        Message::CargarDatos => {
-            Task::none()
-        }
+        Message::CargarDatos => Task::none(),
 
-        Message::DatosCargados(
-            configuracion,
-            categorias,
-            personas,
-        ) => {
+        Message::DatosCargados(configuracion, categorias, personas) => {
             estado.mes_default = configuracion.mes_default;
             estado.anio_default = configuracion.anio_default;
             estado.categorias = categorias;
@@ -142,27 +117,21 @@ pub fn update(
             Task::done(Message::GuardarConfiguracion)
         }
 
-        Message::GuardarConfiguracion => {
-            Task::none()
-        }
+        Message::GuardarConfiguracion => Task::none(),
 
         Message::AgregarCategoria => {
             estado.nueva_categoria.clear();
             Task::none()
         }
 
-        Message::EliminarCategoria(_) => {
-            Task::none()
-        }
+        Message::EliminarCategoria(_) => Task::none(),
 
         Message::AgregarPersona => {
             estado.nueva_persona.clear();
             Task::none()
         }
 
-        Message::EliminarPersona(_) => {
-            Task::none()
-        }
+        Message::EliminarPersona(_) => Task::none(),
 
         Message::CategoriaNombreCambiado(nombre) => {
             estado.nueva_categoria = nombre;
@@ -176,24 +145,70 @@ pub fn update(
 
         Message::BuscarActualizacion => {
             estado.buscando_actualizacion = true;
+            estado.busqueda_actualizacion_realizada = false;
+            estado.actualizacion_disponible = None;
+            estado.url_actualizacion = None;
+            estado.error_actualizacion = None;
 
-            Task::perform(
-                crate::updater::buscar_actualizacion(),
-                Message::ActualizacionEncontrada,
-            )
+            Task::perform(crate::updater::buscar_actualizacion(), |resultado| {
+                Message::ActualizacionEncontrada(resultado)
+            })
         }
 
         Message::ActualizacionEncontrada(resultado) => {
             estado.buscando_actualizacion = false;
+            estado.busqueda_actualizacion_realizada = true;
 
             match resultado {
-                Ok(version) => {
-                    estado.actualizacion_disponible = version;
+                Ok(Some((version, url))) => {
+                    estado.actualizacion_disponible = Some(version);
+                    estado.url_actualizacion = Some(url);
+                }
+
+                Ok(None) => {
+                    estado.actualizacion_disponible = None;
+                    estado.url_actualizacion = None;
                 }
 
                 Err(error) => {
-                    println!("Error al buscar actualizaciones: {error}");
                     estado.actualizacion_disponible = None;
+                    estado.url_actualizacion = None;
+                    estado.error_actualizacion = Some(error);
+                }
+            }
+
+            Task::none()
+        }
+
+        Message::DescargarActualizacion => {
+            let Some(url) = estado.url_actualizacion.clone() else {
+                return Task::none();
+            };
+
+            estado.descargando_actualizacion = true;
+            estado.error_actualizacion = None;
+
+            Task::perform(crate::updater::descargar_actualizacion(url), |resultado| {
+                Message::ActualizacionDescargada(resultado)
+            })
+        }
+
+        Message::ActualizacionDescargada(resultado) => {
+            estado.descargando_actualizacion = false;
+
+            match resultado {
+                Ok(ruta) => match crate::updater::ejecutar_instalador(ruta) {
+                    Ok(()) => {
+                        std::process::exit(0);
+                    }
+
+                    Err(error) => {
+                        estado.error_actualizacion = Some(error);
+                    }
+                },
+
+                Err(error) => {
+                    estado.error_actualizacion = Some(error);
                 }
             }
 
@@ -239,11 +254,9 @@ fn nombre_mes(numero: u32) -> &'static str {
 }
 
 pub fn view(estado: &Estado) -> Element<'_, Message> {
-    let selector_mes = pick_list(
-        MESES,
-        Some(nombre_mes(estado.mes_default)),
-        |mes| Message::MesDefaultSeleccionado(mes.to_string())
-    )
+    let selector_mes = pick_list(MESES, Some(nombre_mes(estado.mes_default)), |mes| {
+        Message::MesDefaultSeleccionado(mes.to_string())
+    })
     .style(|_theme, _status| pick_list::Style {
         background: Background::Color(estilos::BOTON_CONFIGURACION_LISTA),
         text_color: estilos::BOTON_CONFIGURACION_LISTA_TEXTO,
@@ -284,20 +297,12 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     let preferencias = container(
         column![
             text("Preferencias").size(24),
-
-            row![
-                text("Mes por defecto"),
-                selector_mes,
-            ]
-            .spacing(20)
-            .align_y(Alignment::Center),
-
-            row![
-                text("Año por defecto"),
-                selector_anio,
-            ]
-            .spacing(20)
-            .align_y(Alignment::Center),
+            row![text("Mes por defecto"), selector_mes,]
+                .spacing(20)
+                .align_y(Alignment::Center),
+            row![text("Año por defecto"), selector_anio,]
+                .spacing(20)
+                .align_y(Alignment::Center),
         ]
         .spacing(15),
     )
@@ -306,141 +311,127 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     let categorias = container(
         column![
             text("Categorías").size(24),
-
-            text_input(
-                "Nueva categoría",
-                &estado.nueva_categoria,
-            )
-            .on_input(Message::CategoriaNombreCambiado),
-
+            text_input("Nueva categoría", &estado.nueva_categoria,)
+                .on_input(Message::CategoriaNombreCambiado),
             button("Agregar")
                 .on_press(Message::AgregarCategoria)
                 .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR)),
+                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
                     text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
                     ..Default::default()
                 }),
-
-            column(
-                estado
-                    .categorias
-                    .iter()
-                    .map(|categoria| {
-                        row![
-                            text(&categoria.nombre)
-                                .width(Length::Fill),
-
-                            button("Eliminar")
-                                .on_press(Message::EliminarCategoria(categoria.id))
-                                .style(|_theme, _status| button::Style {
-                                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_ELIMINAR)),
-                                    text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
-                                    ..Default::default()
-                                }),
-                        ]
-                        .spacing(10)
-                        .into()
-                    })
-            )
+            column(estado.categorias.iter().map(|categoria| {
+                row![
+                    text(&categoria.nombre).width(Length::Fill),
+                    button("Eliminar")
+                        .on_press(Message::EliminarCategoria(categoria.id,),)
+                        .style(|_theme, _status| button::Style {
+                            background: Some(Background::Color(
+                                estilos::BOTONES_CONFIGURACION_ELIMINAR,
+                            ),),
+                            text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
+                            ..Default::default()
+                        }),
+                ]
+                .spacing(10)
+                .into()
+            }))
             .spacing(8),
         ]
-        .spacing(15)
+        .spacing(15),
     )
     .width(Length::Fixed(250.0));
 
     let personas = container(
         column![
             text("Personas").size(24),
-
-            text_input(
-                "Nueva persona",
-                &estado.nueva_persona,
-            )
-            .on_input(Message::PersonaNombreCambiado),
-
+            text_input("Nueva persona", &estado.nueva_persona,)
+                .on_input(Message::PersonaNombreCambiado),
             button("Agregar")
                 .on_press(Message::AgregarPersona)
                 .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR)),
+                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
                     text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
                     ..Default::default()
                 }),
-
-            column(
-                estado
-                    .personas
-                    .iter()
-                    .map(|persona| {
-                        row![
-                            text(&persona.nombre)
-                                .width(Length::Fill),
-
-                            button("Eliminar")
-                                .on_press(Message::EliminarPersona(persona.id))
-                                .style(|_theme, _status| button::Style {
-                                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_ELIMINAR)),
-                                    text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
-                                    ..Default::default()
-                                }),
-                        ]
-                        .spacing(10)
-                        .into()
-                    })
-            )
+            column(estado.personas.iter().map(|persona| {
+                row![
+                    text(&persona.nombre).width(Length::Fill),
+                    button("Eliminar")
+                        .on_press(Message::EliminarPersona(persona.id,),)
+                        .style(|_theme, _status| button::Style {
+                            background: Some(Background::Color(
+                                estilos::BOTONES_CONFIGURACION_ELIMINAR,
+                            ),),
+                            text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
+                            ..Default::default()
+                        }),
+                ]
+                .spacing(10)
+                .into()
+            }))
             .spacing(8),
         ]
-        .spacing(15)
+        .spacing(15),
     )
     .width(Length::Fixed(250.0));
 
     let actualizaciones = container(
         column![
             text("Actualizaciones").size(24),
-
-            text(format!(
-                "Versión actual: {}",
-                env!("CARGO_PKG_VERSION")
-            )),
-
-            button(
-                if estado.buscando_actualizacion {
-                    "Buscando..."
-                } else {
-                    "Buscar actualizaciones"
-                }
-            )
+            text(format!("Versión actual: {}", env!("CARGO_PKG_VERSION"))),
+            button(if estado.buscando_actualizacion {
+                "Buscando..."
+            } else {
+                "Buscar actualizaciones"
+            })
             .on_press_maybe(
-                if estado.buscando_actualizacion {
+                if estado.buscando_actualizacion || estado.descargando_actualizacion {
                     None
                 } else {
                     Some(Message::BuscarActualizacion)
                 }
             )
             .style(|_theme, _status| button::Style {
-                background: Some(
-                    Background::Color(
-                        estilos::BOTONES_CONFIGURACION_AGREGAR
-                    )
-                ),
+                background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
                 text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
                 ..Default::default()
             }),
+            if estado.busqueda_actualizacion_realizada {
+                match &estado.actualizacion_disponible {
+                    Some(version) => column![
+                        text(format!("Hay una nueva versión disponible: {}", version)),
+                        button(if estado.descargando_actualizacion {
+                            "Descargando..."
+                        } else {
+                            "Descargar actualización"
+                        })
+                        .on_press_maybe(if estado.descargando_actualizacion {
+                            None
+                        } else {
+                            Some(Message::DescargarActualizacion)
+                        })
+                        .style(|_theme, _status| button::Style {
+                            background: Some(Background::Color(
+                                estilos::BOTONES_CONFIGURACION_AGREGAR,
+                            ),),
+                            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
+                            ..Default::default()
+                        }),
+                    ]
+                    .spacing(10),
 
-            match &estado.actualizacion_disponible {
-                Some(version) => {
-                    text(format!(
-                        "Hay una nueva versión disponible: {}",
-                        version
-                    ))
+                    None => {
+                        column![text("No hay actualizaciones disponibles.")]
+                    }
                 }
-
-                None if !estado.buscando_actualizacion => {
-                    text("No hay actualizaciones disponibles.")
-                }
-
-                None => {
-                    text("")
-                }
+            } else {
+                column![]
+            },
+            if let Some(error) = &estado.error_actualizacion {
+                text(format!("Error: {}", error))
+            } else {
+                text("")
             },
         ]
         .spacing(15),
@@ -450,25 +441,22 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     container(
         column![
             preferencias,
-
-            container(
-                row![
-                    container(categorias),
-                    container(personas),
-                ]
-                .spacing(110)
-            )
-            .width(Length::Fill)
-            .center_x(Length::Fill),
-
+            container(row![container(categorias), container(personas),].spacing(110),)
+                .width(Length::Fill)
+                .center_x(Length::Fill),
             actualizaciones,
+            if let Some(error) = &estado.error_actualizacion {
+                text(format!("Error: {}", error))
+            } else {
+                text("")
+            },
         ]
-        .spacing(30)
+        .spacing(30),
     )
     .padding(40)
     .width(Length::Fill)
     .height(Length::Fill)
-    .style (|_theme| container::Style {
+    .style(|_theme| container::Style {
         background: Some(Background::Color(estilos::FONDO_CONFIGURACION)),
         ..Default::default()
     })
