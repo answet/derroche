@@ -231,6 +231,10 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                                 "No se pudo ejecutar el instalador: {error}"
                             )
                         );
+                    } else {
+                        // El instalador necesita reemplazar el ejecutable actual.
+                        // Cerrar la aplicación evita que Windows lo mantenga bloqueado.
+                        return iced::exit();
                     }
                 }
 

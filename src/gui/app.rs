@@ -9,15 +9,10 @@ use super::{gastos, analisis, configuracion};
 use crate::estilos;
 use crate::models::{Categoria, Persona, GastoDetalle, TotalMensual, GastoPorCategoria, GastoPorPersona, Configuracion};
 
-use std::path::PathBuf;
-
 const ICONO: &[u8] = include_bytes!("../../assets/icono.png");
-
-fn ruta_asset(nombre: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join(nombre)
-}
+const ICONO_GASTOS: &[u8] = include_bytes!("../../assets/gastos.svg");
+const ICONO_ANALISIS: &[u8] = include_bytes!("../../assets/analisis.svg");
+const ICONO_CONFIGURACION: &[u8] = include_bytes!("../../assets/configuracion.svg");
 
 pub fn run() -> iced::Result {
     let imagen = image::load_from_memory(ICONO)
@@ -708,7 +703,7 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
             container(
                 button(
                         row![
-                            svg(ruta_asset("gastos.svg"))
+                            svg(svg::Handle::from_memory(ICONO_GASTOS))
                                 .width(20)
                                 .height(20)
                                 .style(|_theme, _status| svg::Style {
@@ -747,7 +742,7 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
             container(
                 button(
                         row![
-                            svg(ruta_asset("analisis.svg"))
+                            svg(svg::Handle::from_memory(ICONO_ANALISIS))
                                 .width(20)
                                 .height(20)
                                 .style(|_theme, _status| svg::Style {
@@ -786,7 +781,7 @@ fn barra_navegacion(estado: &Estado) -> Element<'static, Message> {
             container(
                 button(
                         row![
-                            svg(ruta_asset("configuracion.svg"))
+                            svg(svg::Handle::from_memory(ICONO_CONFIGURACION))
                                 .width(20)
                                 .height(20)
                                 .style(|_theme, _status| svg::Style {
