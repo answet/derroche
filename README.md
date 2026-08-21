@@ -2,8 +2,6 @@
 
 Aplicación de escritorio para registrar y analizar gastos personales. Permite organizar consumos por categoría y persona, consultar resúmenes mensuales y mantener los datos de forma local.
 
-![Icono de Derroche](assets/icono.png)
-
 ## Funcionalidades
 
 - Alta, edición y eliminación de gastos.
@@ -73,11 +71,3 @@ src/
 assets/              # Iconos e ilustraciones
 installer/           # Configuración del instalador de Windows
 ```
-
-## Actualizaciones
-
-La sección de configuración consulta las releases más recientes de [answet/derroche](https://github.com/answet/derroche). Para distribuir una nueva versión, publica una release con su etiqueta de versión y, en Windows, adjunta un archivo llamado `Derroche-Setup.exe`.
-
-## Licencia
-
-Este repositorio no incluye actualmente un archivo de licencia.
