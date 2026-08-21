@@ -30,6 +30,7 @@ pub enum ModoFormulario {
     Cerrado,
     Nuevo,
     Editar(i32),
+    ConfirmarEliminacion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,7 +63,10 @@ pub enum Message {
     MostrarFormulario,
     CerrarFormulario,
     EditarGasto,
-    EliminarGasto,
+    SolicitarEliminarGasto,
+    ConfirmarEliminarGasto,
+    CancelarEliminarGasto,
+    DeseleccionarGasto,
 
     GastoAgregado(Result<(), String>),
     GastoEliminado(Result<(), String>),
@@ -223,11 +227,11 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
         }
 
         Message::GastoSeleccionado(id) => {
-            if estado.gasto_seleccionado == Some(id) {
-                estado.gasto_seleccionado = None;
-            } else {
-                estado.gasto_seleccionado = Some(id);
-            }
+            estado.gasto_seleccionado = Some(id);
+        }
+
+        Message::DeseleccionarGasto => {
+            estado.gasto_seleccionado = None;
         }
 
         Message::MostrarFormulario => {
@@ -247,7 +251,17 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             estado.persona = None;
         }
 
-        Message::EliminarGasto => {
+        Message::SolicitarEliminarGasto => {
+            if estado.gasto_seleccionado.is_some() {
+                estado.modo_formulario = ModoFormulario::ConfirmarEliminacion;
+            }
+        }
+
+        Message::CancelarEliminarGasto => {
+            estado.modo_formulario = ModoFormulario::Cerrado;
+        }
+
+        Message::ConfirmarEliminarGasto => {
             if let Some(id) = estado.gasto_seleccionado {
                 return Task::perform(
                     async move {
@@ -445,6 +459,10 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
         ModoFormulario::Cerrado => {
             button("Cerrar")
         }
+
+        ModoFormulario::ConfirmarEliminacion => {
+            button("Cerrar")
+        }
     };
 
     let contenido_formulario = column![
@@ -637,6 +655,8 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             formulario(estado)
         }
 
+        ModoFormulario::ConfirmarEliminacion => confirmar_eliminacion(estado),
+
         ModoFormulario::Cerrado => {
             let selector_mes = pick_list(
                 MESES,
@@ -661,7 +681,11 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                         .style(estilos::estilo_boton_gastos),
 
                     button("Eliminar")
-                        .on_press(Message::EliminarGasto)
+                        .on_press(Message::SolicitarEliminarGasto)
+                        .style(estilos::estilo_boton_gastos),
+
+                    button("Cancelar selección")
+                        .on_press(Message::DeseleccionarGasto)
                         .style(estilos::estilo_boton_gastos),
                 ]
                 .spacing(10)
@@ -874,6 +898,59 @@ fn cargar_gastos() -> Result<Vec<GastoDetalle>, String> {
 
 // Bajo este ancho, los metadatos pasan a una segunda línea para preservar legibilidad.
 const ANCHO_TABLA_COMPACTA: f32 = 680.0;
+
+fn confirmar_eliminacion(estado: &Estado) -> Element<'_, Message> {
+    let detalle = estado
+        .gasto_seleccionado
+        .and_then(|id| estado.gastos.iter().find(|gasto| gasto.id == id))
+        .map(|gasto| {
+            format!(
+                "{} · {} · {}",
+                gasto.descripcion,
+                formatear_monto(gasto.monto),
+                gasto.fecha,
+            )
+        })
+        .unwrap_or_else(|| "el gasto seleccionado".to_string());
+
+    container(
+        column![
+            text("¿Eliminar este gasto?").size(28),
+            text(detalle).size(18),
+            text("Esta acción no se puede deshacer."),
+            row![
+                button("Cancelar")
+                    .on_press(Message::CancelarEliminarGasto)
+                    .style(estilos::estilo_boton_gastos),
+                button("Sí, eliminar")
+                    .on_press(Message::ConfirmarEliminarGasto)
+                    .style(estilos::estilo_boton_gastos),
+            ]
+            .spacing(12),
+        ]
+        .spacing(18),
+    )
+    .width(Length::Fixed(500.0))
+    .padding(30)
+    .style(|_theme| container::Style {
+        background: Some(Background::Color(estilos::FONDO_TABLA_GASTOS)),
+        border: Border {
+            color: estilos::BORDE_TABLA_GASTOS,
+            width: 1.0,
+            radius: 14.0.into(),
+        },
+        ..Default::default()
+    })
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
+    .style(|_theme| container::Style {
+        background: Some(Background::Color(estilos::FONDO_GASTOS)),
+        ..Default::default()
+    })
+    .into()
+}
 
 fn tabla_gastos<'a>(estado: &'a Estado, ancho_disponible: f32) -> Element<'a, Message> {
     let mut indices: Vec<(usize, NaiveDate)> = estado

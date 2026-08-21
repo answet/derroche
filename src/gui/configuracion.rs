@@ -7,6 +7,12 @@ use crate::formato::{anios_alrededor, nombre_mes, numero_mes, MESES};
 
 use crate::estilos;
 
+#[derive(Debug, Clone)]
+pub enum EliminacionPendiente {
+    Categoria(Categoria),
+    Persona(Persona),
+}
+
 pub struct Estado {
     pub mes_default: u32,
     pub anio_default: i32,
@@ -21,6 +27,7 @@ pub struct Estado {
     pub buscando_actualizacion: bool,
     pub busqueda_actualizacion_realizada: bool,
     pub error_actualizacion: Option<String>,
+    pub eliminacion_pendiente: Option<EliminacionPendiente>,
 }
 
 impl Default for Estado {
@@ -39,6 +46,7 @@ impl Default for Estado {
             buscando_actualizacion: false,
             busqueda_actualizacion_realizada: false,
             error_actualizacion: None,
+            eliminacion_pendiente: None,
         }
     }
 }
@@ -54,10 +62,14 @@ pub enum Message {
     GuardarConfiguracion,
 
     AgregarCategoria,
+    SolicitarEliminarCategoria(i32),
     EliminarCategoria(i32),
 
     AgregarPersona,
+    SolicitarEliminarPersona(i32),
     EliminarPersona(i32),
+    ConfirmarEliminacion,
+    CancelarEliminacion,
 
     CategoriaNombreCambiado(String),
     PersonaNombreCambiado(String),
@@ -107,14 +119,50 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             Task::none()
         }
 
-        Message::EliminarCategoria(_) => Task::none(),
+        Message::SolicitarEliminarCategoria(id) => {
+            estado.eliminacion_pendiente = estado
+                .categorias
+                .iter()
+                .find(|categoria| categoria.id == id)
+                .cloned()
+                .map(EliminacionPendiente::Categoria);
+            Task::none()
+        }
 
         Message::AgregarPersona => {
             estado.nueva_persona.clear();
             Task::none()
         }
 
-        Message::EliminarPersona(_) => Task::none(),
+        Message::SolicitarEliminarPersona(id) => {
+            estado.eliminacion_pendiente = estado
+                .personas
+                .iter()
+                .find(|persona| persona.id == id)
+                .cloned()
+                .map(EliminacionPendiente::Persona);
+            Task::none()
+        }
+
+        Message::CancelarEliminacion => {
+            estado.eliminacion_pendiente = None;
+            Task::none()
+        }
+
+        Message::ConfirmarEliminacion => {
+            let mensaje = match estado.eliminacion_pendiente.take() {
+                Some(EliminacionPendiente::Categoria(categoria)) => {
+                    Message::EliminarCategoria(categoria.id)
+                }
+                Some(EliminacionPendiente::Persona(persona)) => {
+                    Message::EliminarPersona(persona.id)
+                }
+                None => return Task::none(),
+            };
+            Task::done(mensaje)
+        }
+
+        Message::EliminarCategoria(_) | Message::EliminarPersona(_) => Task::none(),
 
         Message::CategoriaNombreCambiado(nombre) => {
             estado.nueva_categoria = nombre;
@@ -251,7 +299,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 row![
                     text(&categoria.nombre).width(Length::Fill),
                     button("Eliminar")
-                        .on_press(Message::EliminarCategoria(categoria.id,),)
+                        .on_press(Message::SolicitarEliminarCategoria(categoria.id,),)
                         .style(estilos::estilo_boton_configuracion_eliminar),
                 ]
                 .spacing(10)
@@ -275,7 +323,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 row![
                     text(&persona.nombre).width(Length::Fill),
                     button("Eliminar")
-                        .on_press(Message::EliminarPersona(persona.id,),)
+                        .on_press(Message::SolicitarEliminarPersona(persona.id,),)
                         .style(estilos::estilo_boton_configuracion_eliminar),
                 ]
                 .spacing(10)
@@ -349,7 +397,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             .width(Length::Shrink)
     };
 
-    container(
+    let contenido = container(
         column![
             preferencias,
 
@@ -374,6 +422,61 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     .padding(40)
     .width(Length::Fill)
     .height(Length::Fill)
+    .style(|_theme| container::Style {
+        background: Some(Background::Color(estilos::FONDO_CONFIGURACION)),
+        ..Default::default()
+    });
+
+    let Some(eliminacion) = &estado.eliminacion_pendiente else {
+        return contenido.into();
+    };
+
+    let (tipo, nombre) = match eliminacion {
+        EliminacionPendiente::Categoria(categoria) => ("categoría", &categoria.nombre),
+        EliminacionPendiente::Persona(persona) => ("persona", &persona.nombre),
+    };
+
+    container(
+        column![
+            container(
+                column![
+                    text(format!("¿Eliminar esta {tipo}?" )).size(26),
+                    text(nombre).size(20),
+                    text(format!(
+                        "Vas a eliminar la {tipo} \"{nombre}\". Esta acción no se puede deshacer."
+                    )),
+                    row![
+                        button("Cancelar")
+                            .on_press(Message::CancelarEliminacion)
+                            .style(estilos::estilo_boton_configuracion_agregar),
+                        button("Sí, eliminar")
+                            .on_press(Message::ConfirmarEliminacion)
+                            .style(estilos::estilo_boton_configuracion_eliminar),
+                    ]
+                    .spacing(12),
+                ]
+                .spacing(16),
+            )
+            .padding(24)
+            .width(Length::Fixed(460.0))
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(estilos::FONDO_CONFIGURACION)),
+                border: Border {
+                    width: 1.0,
+                    radius: 12.0.into(),
+                    ..Border::default()
+                },
+                ..Default::default()
+            }),
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
     .style(|_theme| container::Style {
         background: Some(Background::Color(estilos::FONDO_CONFIGURACION)),
         ..Default::default()
