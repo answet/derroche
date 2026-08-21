@@ -5,28 +5,12 @@ use iced::{
     Background,
     Color,
     Border,
-    Shadow,
     widget::{column, container, row, text, pick_list},
-    overlay::menu,
 };
 
 use crate::models::{GastoDetalle, GastoPorCategoria, TotalMensual, GastoPorPersona};
 use crate::estilos;
-
-const MESES: [&str; 12] = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-];
+use crate::formato::{formatear_monto, nombre_mes, numero_mes, MESES};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -76,7 +60,7 @@ pub fn update(estado: &mut Estado, mensaje: Message) {
 pub fn view(estado: &Estado) -> Element<'_, Message> {
     let selector_mes = pick_list(
         MESES,
-        Some(nombre_mes(estado.mes)),
+        nombre_mes(estado.mes),
         |mes| Message::MesSeleccionado(mes.to_string()),
     )
     .width(Length::Fixed(165.0))
@@ -88,20 +72,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         placeholder_color: estilos::GASTOS_TEXTO_MES,
         handle_color: estilos::GASTOS_TEXTO_MES,
     })
-    .menu_style(|_theme| menu::Style {
-        text_color: estilos::GASTOS_TEXTO_SELECTOR,
-        background: Background::Color(
-            estilos::GASTOS_TEXTO_SELECTOR_FONDO
-        ),
-        border: Border::default(),
-        selected_text_color:
-            estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-        selected_background:
-            Background::Color(
-                estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO
-            ),
-        shadow: Shadow::default(),
-    });
+    .menu_style(estilos::estilo_menu_selector);
 
     let mayor_gasto = match &estado.mayor_gasto {
         Some(gasto) => {
@@ -141,10 +112,11 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 format!("{:+.1}%", estado.diferencia_mes),
             ),
         ]
-        .spacing(40)
+        .spacing(80)
     )
-    .width(Length::Shrink)
-    .center_x(Length::Shrink)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .center_x(Length::Fill)
     .center_y(Length::Fill);
 
     let evolucion = grafico_evolucion(estado);
@@ -195,7 +167,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
             encabezado,
             graficos,
         ]
-        .spacing(20)
+        .spacing(40)
         .width(Length::Fill)
         .height(Length::Fill),
     )
@@ -214,8 +186,8 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
 fn tarjeta(titulo: &str, valor: String) -> Element<'_, Message> {
     container(
         column![
-            text(titulo).size(14),
-            text(valor).size(24),
+            text(titulo).size(18),
+            text(valor).size(28),
         ]
         .spacing(8),
     )
@@ -225,48 +197,12 @@ fn tarjeta(titulo: &str, valor: String) -> Element<'_, Message> {
 fn tarjeta_elemento(titulo: String, contenido: Element<'_, Message>) -> Element<'_, Message> {
     container(
         column![
-            text(titulo).size(14),
+            text(titulo).size(18),
             contenido,
         ]
         .spacing(8),
     )
     .into()
-}
-
-fn numero_mes(nombre: &str) -> Option<u32> {
-    match nombre {
-        "Enero" => Some(1),
-        "Febrero" => Some(2),
-        "Marzo" => Some(3),
-        "Abril" => Some(4),
-        "Mayo" => Some(5),
-        "Junio" => Some(6),
-        "Julio" => Some(7),
-        "Agosto" => Some(8),
-        "Septiembre" => Some(9),
-        "Octubre" => Some(10),
-        "Noviembre" => Some(11),
-        "Diciembre" => Some(12),
-        _ => None,
-    }
-}
-
-fn nombre_mes(numero: u32) -> &'static str {
-    match numero {
-        1 => "Enero",
-        2 => "Febrero",
-        3 => "Marzo",
-        4 => "Abril",
-        5 => "Mayo",
-        6 => "Junio",
-        7 => "Julio",
-        8 => "Agosto",
-        9 => "Septiembre",
-        10 => "Octubre",
-        11 => "Noviembre",
-        12 => "Diciembre",
-        _ => "Agosto",
-    }
 }
 
 fn totales_del_anio(
@@ -347,7 +283,7 @@ fn grafico_evolucion(
             column![
                 monto,
                 barra,
-                text(nombre_mes(mes)).size(12),
+                text(nombre_mes(mes).unwrap_or("")).size(12),
             ]
             .align_x(Alignment::Center)
             .spacing(8)
@@ -516,36 +452,4 @@ fn grafico_personas(
     )
     .width(Length::Fixed(400.0))
     .into()
-}
-
-fn formatear_monto(monto: f64) -> String {
-    let negativo = monto < 0.0;
-    let monto = monto.abs();
-
-    let parte_entera = monto.trunc() as u64;
-    let parte_decimal = ((monto.fract() * 100.0).round()) as u64;
-
-    let digitos = parte_entera.to_string();
-    let mut entero_formateado = String::new();
-
-    for (i, caracter) in digitos.chars().enumerate() {
-        if i > 0 && (digitos.len() - i).is_multiple_of(3) {
-            entero_formateado.push('.');
-        }
-
-        entero_formateado.push(caracter);
-    }
-
-    let signo = if negativo { "-" } else { "" };
-
-    if parte_decimal == 0 {
-        format!("{}${}", signo, entero_formateado)
-    } else {
-        format!(
-            "{}${},{:02}",
-            signo,
-            entero_formateado,
-            parte_decimal
-        )
-    }
 }

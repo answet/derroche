@@ -1,4 +1,4 @@
-use iced::{Element, Task, Length, Alignment, Background, Color, Border, Shadow, Theme};
+use iced::{Element, Task, Length, Alignment, Background, Color, Border, Theme};
 use iced::widget::{
     column,
     text,
@@ -7,12 +7,13 @@ use iced::widget::{
     button,
     container,
     row,
+    responsive,
     scrollable,
     Space,
 };
-use iced::overlay::menu;
 
 use chrono::{Datelike, NaiveDate, Local};
+use crate::formato::{anios_alrededor, formatear_monto, nombre_mes, numero_mes, MESES};
 use crate::models::{Categoria, Persona, GastoDetalle};
 use crate::estilos;
 
@@ -21,27 +22,6 @@ const DIAS: [u32; 31] = [
     11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
     31,
-];
-
-const MESES: [&str; 12] = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-];
-
-const ANIOS: [u32; 3] = [
-    2026,
-    2027,
-    2028,
 ];
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -183,14 +163,13 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         Message::Agregar => {
             match validar(estado) {
-                Ok(()) => {
+                Ok(monto) => {
                     estado.error = None;
 
                     let categoria = estado.categoria.clone().unwrap();
                     let persona = estado.persona.clone().unwrap();
 
                     let descripcion = estado.descripcion.clone();
-                    let monto: f64 = estado.monto.trim().parse().unwrap();
                     let fecha = estado.fecha.clone();
 
                     return Task::perform(
@@ -253,19 +232,7 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         Message::MostrarFormulario => {
             estado.modo_formulario = ModoFormulario::Nuevo;
-
-            estado.categoria = estado
-                .categorias
-                .iter()
-                .find(|categoria| categoria.nombre == "Sin Categoria")
-                .cloned();
-
-            estado.persona = estado
-                .personas
-                .iter()
-                .find(|persona| persona.nombre == "General")
-                .cloned();
-
+            reiniciar_formulario(estado);
             estado.error = None;
         }
 
@@ -313,11 +280,16 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         Message::EditarGasto => {
             if let Some(id) = estado.gasto_seleccionado
-                && let Some(gasto) = estado.gastos.iter().find(|gasto| gasto.id == id)
+                && let Some(gasto) = estado.gastos.iter().find(|gasto| gasto.id == id).cloned()
             {
                     estado.descripcion = gasto.descripcion.clone();
                     estado.monto = gasto.monto.to_string();
                     estado.fecha = gasto.fecha.clone();
+
+                    if let Err(error) = sincronizar_selectores_fecha(estado, &gasto.fecha) {
+                        estado.error = Some(error);
+                        return Task::none();
+                    }
 
                     estado.categoria = estado
                         .categorias
@@ -350,7 +322,7 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         Message::GuardarEdicion => {
             match validar(estado) {
-                Ok(()) => {
+                Ok(monto) => {
                     estado.error = None;
 
                     let id = match estado.modo_formulario {
@@ -362,7 +334,6 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                     let persona = estado.persona.clone().unwrap();
 
                     let descripcion = estado.descripcion.clone();
-                    let monto: f64 = estado.monto.trim().parse().unwrap();
                     let fecha = estado.fecha.clone();
 
                     return Task::perform(
@@ -428,37 +399,19 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         Message::DiaSeleccionado(dia) => {
             estado.dia = dia;
-
-            estado.fecha = format!(
-                "{:02}-{:02}-{}",
-                estado.dia,
-                estado.mes_fecha,
-                estado.anio_fecha
-            );
+            actualizar_fecha(estado);
         }
 
         Message::MesFechaSeleccionado(mes) => {
             if let Some(numero) = numero_mes(&mes) {
                 estado.mes_fecha = numero;
-
-                estado.fecha = format!(
-                    "{:02}-{:02}-{}",
-                    estado.dia,
-                    estado.mes_fecha,
-                    estado.anio_fecha
-                );
+                actualizar_fecha(estado);
             }
         }
 
         Message::AnioSeleccionado(anio) => {
             estado.anio_fecha = anio;
-
-            estado.fecha = format!(
-                "{:02}-{:02}-{}",
-                estado.dia,
-                estado.mes_fecha,
-                estado.anio_fecha
-            );
+            actualizar_fecha(estado);
         }
     }
 
@@ -466,6 +419,11 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 }
 
 fn formulario(estado: &Estado) -> Element<'_, Message> {
+    let anios = anios_alrededor(estado.anio_fecha as i32)
+        .into_iter()
+        .filter_map(|anio| u32::try_from(anio).ok())
+        .collect::<Vec<_>>();
+
     let mensaje_error = match &estado.error {
         Some(error) => text(error).color(estilos::TEXTO_ERROR),
         None => text(""),
@@ -475,23 +433,13 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
         ModoFormulario::Nuevo => {
             button("Agregar")
                 .on_press(Message::Agregar)
-                .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                    text_color: estilos::GASTOS_TEXTO_BOTONES,
-                    border: Border::default(),
-                    ..Default::default()
-                })
+                .style(estilos::estilo_boton_gastos)
         }
 
         ModoFormulario::Editar(_) => {
             button("Guardar")
                 .on_press(Message::GuardarEdicion)
-                .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                    text_color: estilos::GASTOS_TEXTO_BOTONES,
-                    border: Border::default(),
-                    ..Default::default()
-                })
+                .style(estilos::estilo_boton_gastos)
         }
 
         ModoFormulario::Cerrado => {
@@ -517,18 +465,11 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                     radius: 8.0.into(),
                 }
             })
-            .menu_style(|_theme| menu::Style {
-                text_color: estilos::GASTOS_TEXTO_SELECTOR,
-                background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-                border: Border::default(),
-                selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-                selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-                shadow: Shadow::default(),
-            }),
+            .menu_style(estilos::estilo_menu_selector),
 
             pick_list(
                 MESES,
-                Some(nombre_mes(estado.mes_fecha)),
+                nombre_mes(estado.mes_fecha),
                 |mes| Message::MesFechaSeleccionado(mes.to_string()),
             )
             .style(|_theme, _status| pick_list::Style {
@@ -542,17 +483,10 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                     radius: 8.0.into(),
                 }
             })
-            .menu_style(|_theme| menu::Style {
-                text_color: estilos::GASTOS_TEXTO_SELECTOR,
-                background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-                border: Border::default(),
-                selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-                selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-                shadow: Shadow::default(),
-            }),
+            .menu_style(estilos::estilo_menu_selector),
 
             pick_list(
-                ANIOS,
+                anios,
                 Some(estado.anio_fecha),
                 Message::AnioSeleccionado,
             )
@@ -567,14 +501,7 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                     radius: 8.0.into(),
                 }
             })
-            .menu_style(|_theme| menu::Style {
-                text_color: estilos::GASTOS_TEXTO_SELECTOR,
-                background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-                border: Border::default(),
-                selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-                selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-                shadow: Shadow::default(),
-            }),
+            .menu_style(estilos::estilo_menu_selector),
 
         ]
         .spacing(10),
@@ -612,8 +539,8 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
             }),
 
         pick_list(
-            estado.categorias.clone(),
-            estado.categoria.clone(),
+            estado.categorias.as_slice(),
+            estado.categoria.as_ref(),
             Message::CategoriaSeleccionada,
         )
         .style(|_theme, _status| pick_list::Style {
@@ -627,18 +554,11 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                     radius: 8.0.into(),
                 }
         })
-        .menu_style(|_theme| menu::Style {
-            text_color: estilos::GASTOS_TEXTO_SELECTOR,
-            background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-            border: Border::default(),
-            selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-            selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-            shadow: Shadow::default(),
-        }),
+            .menu_style(estilos::estilo_menu_selector),
 
         pick_list(
-            estado.personas.clone(),
-            estado.persona.clone(),
+            estado.personas.as_slice(),
+            estado.persona.as_ref(),
             Message::PersonaSeleccionada,
         )
         .style(|_theme, _status| pick_list::Style {
@@ -652,14 +572,7 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
                     radius: 8.0.into(),
                 }
         })
-        .menu_style(|_theme| menu::Style {
-            text_color: estilos::GASTOS_TEXTO_SELECTOR,
-            background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-            border: Border::default(),
-            selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-            selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-            shadow: Shadow::default(),
-        }),
+            .menu_style(estilos::estilo_menu_selector),
 
         mensaje_error,
 
@@ -669,12 +582,7 @@ fn formulario(estado: &Estado) -> Element<'_, Message> {
 
                 button("Cancelar")
                     .on_press(Message::CerrarFormulario)
-                    .style(|_theme, _status| button::Style {
-                        background: Some(Background::Color(estilos::FONDO_BOTONES_GASTOS)),
-                        text_color: estilos::GASTOS_TEXTO_BOTONES,
-                        border: Border::default(),
-                        ..Default::default()
-                    }),
+                    .style(estilos::estilo_boton_gastos),
 
                 boton_guardar,
 
@@ -732,7 +640,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         ModoFormulario::Cerrado => {
             let selector_mes = pick_list(
                 MESES,
-                Some(nombre_mes(estado.mes)),
+                nombre_mes(estado.mes),
                 |mes| Message::MesSeleccionado(mes.to_string()),
             )
             .width(Length::Fixed(165.0))
@@ -744,76 +652,37 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 placeholder_color: estilos::GASTOS_TEXTO_MES,
                 handle_color: estilos::GASTOS_TEXTO_MES,
             })
-            .menu_style(|_theme| menu::Style {
-                text_color: estilos::GASTOS_TEXTO_SELECTOR,
-                background: Background::Color(
-                    estilos::GASTOS_TEXTO_SELECTOR_FONDO
-                ),
-                border: Border::default(),
-                selected_text_color:
-                    estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-                selected_background:
-                    Background::Color(
-                        estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO
-                    ),
-                shadow: Shadow::default(),
-            });
+            .menu_style(estilos::estilo_menu_selector);
 
             let botones = if estado.gasto_seleccionado.is_some() {
                 row![
                     button("Editar")
                         .on_press(Message::EditarGasto)
-                        .style(|_theme, _status| button::Style {
-                            background: Some(
-                                Background::Color(
-                                    estilos::FONDO_BOTONES_GASTOS
-                                )
-                            ),
-                            text_color:
-                                estilos::GASTOS_TEXTO_BOTONES,
-                            border: Border::default(),
-                            ..Default::default()
-                        }),
+                        .style(estilos::estilo_boton_gastos),
 
                     button("Eliminar")
                         .on_press(Message::EliminarGasto)
-                        .style(|_theme, _status| button::Style {
-                            background: Some(
-                                Background::Color(
-                                    estilos::FONDO_BOTONES_GASTOS
-                                )
-                            ),
-                            text_color:
-                                estilos::GASTOS_TEXTO_BOTONES,
-                            border: Border::default(),
-                            ..Default::default()
-                        }),
+                        .style(estilos::estilo_boton_gastos),
                 ]
                 .spacing(10)
             } else {
                 row![
                     button("+ Agregar Gasto")
                         .on_press(Message::MostrarFormulario)
-                        .style(|_theme, _status| button::Style {
-                            background: Some(
-                                Background::Color(
-                                    estilos::FONDO_BOTONES_GASTOS
-                                )
-                            ),
-                            text_color:
-                                estilos::GASTOS_TEXTO_BOTONES,
-                            border: Border::default(),
-                            ..Default::default()
-                        }),
+                        .style(estilos::estilo_boton_gastos),
                 ]
             };
 
             let contenido = column![
                 selector_mes,
 
-                container(tabla_gastos(estado))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
+                container(
+                    responsive(move |tamano| tabla_gastos(estado, tamano.width))
+                        .width(Length::Fill)
+                        .height(Length::Fill),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
                     .padding(10)
                     .style(|_theme| container::Style {
                         background: Some(
@@ -866,7 +735,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     }
 }
 
-fn validar(estado: &Estado) -> Result<(), String> {
+fn validar(estado: &Estado) -> Result<f64, String> {
     if estado.fecha.trim().is_empty() {
         return Err("La fecha es obligatoria".to_string());
     }
@@ -879,12 +748,9 @@ fn validar(estado: &Estado) -> Result<(), String> {
         return Err("El monto es obligatorio".to_string());
     }
 
-    let monto: f64 = match estado.monto.trim().parse() {
-        Ok(monto) => monto,
-        Err(_) => { return Err("El monto debe ser un numero valido".to_string()); }
-    };
+    let monto = parsear_monto(&estado.monto)?;
 
-    if monto <= 0.0 {
+    if !monto.is_finite() || monto <= 0.0 {
         return Err("El monto debe ser mayor a 0".to_string());
     }
 
@@ -900,7 +766,50 @@ fn validar(estado: &Estado) -> Result<(), String> {
         return Err("Debes seleccionar una persona".to_string());
     }
 
+    Ok(monto)
+}
+
+fn parsear_monto(entrada: &str) -> Result<f64, String> {
+    let entrada = entrada.trim();
+    let normalizado = if entrada.contains(',') {
+        entrada.replace('.', "").replace(',', ".")
+    } else {
+        entrada.to_string()
+    };
+
+    normalizado
+        .parse()
+        .map_err(|_| "El monto debe ser un numero valido".to_string())
+}
+
+fn sincronizar_selectores_fecha(estado: &mut Estado, fecha: &str) -> Result<(), String> {
+    let fecha = NaiveDate::parse_from_str(fecha, "%d-%m-%Y")
+        .map_err(|_| "La fecha del gasto no es válida".to_string())?;
+
+    estado.dia = fecha.day();
+    estado.mes_fecha = fecha.month();
+    estado.anio_fecha = fecha.year() as u32;
+
     Ok(())
+}
+
+fn actualizar_fecha(estado: &mut Estado) {
+    estado.dia = estado.dia.min(ultimo_dia_del_mes(estado.mes_fecha, estado.anio_fecha));
+    estado.fecha = format!(
+        "{:02}-{:02}-{}",
+        estado.dia,
+        estado.mes_fecha,
+        estado.anio_fecha
+    );
+}
+
+fn ultimo_dia_del_mes(mes: u32, anio: u32) -> u32 {
+    match mes {
+        2 if anio.is_multiple_of(400) || (anio.is_multiple_of(4) && !anio.is_multiple_of(100)) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 fn guardar_gasto(
@@ -910,8 +819,7 @@ fn guardar_gasto(
     categoria_id: i32,
     persona_id: i32,
 ) -> Result<(), String> {
-    let conexion = crate::database::conectar()
-        .map_err(|error| error.to_string())?;
+    let conexion = crate::database::conectar_inicializada()?;
 
     crate::repository::agregar_gasto(
         &conexion,
@@ -927,8 +835,7 @@ fn guardar_gasto(
 }
 
 fn eliminar_gasto(id: i32) -> Result<(), String> {
-    let conexion = crate::database::conectar()
-        .map_err(|error| error.to_string())?;
+    let conexion = crate::database::conectar_inicializada()?;
 
     crate::repository::eliminar_gasto(&conexion, id)
         .map_err(|error| error.to_string())?;
@@ -944,9 +851,7 @@ fn actualizar_gasto(
     categoria_id: i32,
     persona_id: i32,
 ) -> Result<(), String> {
-    let conexion =
-        crate::database::conectar()
-            .map_err(|error| error.to_string())?;
+    let conexion = crate::database::conectar_inicializada()?;
 
     crate::repository::actualizar_gasto(
         &conexion,
@@ -961,29 +866,24 @@ fn actualizar_gasto(
 }
 
 fn cargar_gastos() -> Result<Vec<GastoDetalle>, String> {
-    let conexion =
-        crate::database::conectar()
-            .map_err(|error| error.to_string())?;
+    let conexion = crate::database::conectar_inicializada()?;
 
     crate::repository::obtener_gastos_detalle(&conexion)
         .map_err(|error| error.to_string())
 }
 
-fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
+// Bajo este ancho, los metadatos pasan a una segunda línea para preservar legibilidad.
+const ANCHO_TABLA_COMPACTA: f32 = 680.0;
+
+fn tabla_gastos<'a>(estado: &'a Estado, ancho_disponible: f32) -> Element<'a, Message> {
     let mut indices: Vec<(usize, NaiveDate)> = estado
         .gastos
         .iter()
         .enumerate()
         .filter_map(|(indice, gasto)| {
-            let fecha = NaiveDate::parse_from_str(
-                &gasto.fecha,
-                "%d-%m-%Y",
-            )
-            .ok()?;
+            let fecha = NaiveDate::parse_from_str(&gasto.fecha, "%d-%m-%Y").ok()?;
 
-            if fecha.month() == estado.mes
-                && fecha.year() as u32 == estado.anio
-            {
+            if fecha.month() == estado.mes && fecha.year() as u32 == estado.anio {
                 Some((indice, fecha))
             } else {
                 None
@@ -996,28 +896,18 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
         let gasto_b = &estado.gastos[*indice_b];
 
         let orden = match estado.columna_orden {
-            ColumnaOrden::Descripcion => {
-                gasto_a.descripcion.cmp(&gasto_b.descripcion)
-            }
+            ColumnaOrden::Descripcion => gasto_a.descripcion.cmp(&gasto_b.descripcion),
 
-            ColumnaOrden::Monto => {
-                gasto_a
-                    .monto
-                    .partial_cmp(&gasto_b.monto)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            }
+            ColumnaOrden::Monto => gasto_a
+                .monto
+                .partial_cmp(&gasto_b.monto)
+                .unwrap_or(std::cmp::Ordering::Equal),
 
-            ColumnaOrden::Persona => {
-                gasto_a.persona.cmp(&gasto_b.persona)
-            }
+            ColumnaOrden::Persona => gasto_a.persona.cmp(&gasto_b.persona),
 
-            ColumnaOrden::Categoria => {
-                gasto_a.categoria.cmp(&gasto_b.categoria)
-            }
+            ColumnaOrden::Categoria => gasto_a.categoria.cmp(&gasto_b.categoria),
 
-            ColumnaOrden::Fecha => {
-               fecha_a.cmp(fecha_b) 
-            }
+            ColumnaOrden::Fecha => fecha_a.cmp(fecha_b),
         };
 
         match estado.direccion_orden {
@@ -1026,143 +916,150 @@ fn tabla_gastos<'a>(estado: &'a Estado) -> Element<'a, Message> {
         }
     });
 
-    let encabezado = row![
-        button(
-            text(titulo_columna(
-                "Descripcion",
-                ColumnaOrden::Descripcion,
-                estado,
-            ))
-            .align_x(Alignment::Center)
-        )
-        .on_press(Message::OrdenarPor(ColumnaOrden::Descripcion))
-        .width(Length::FillPortion(3))
-        .style(estilo_encabezado),
+    let vista_compacta = ancho_disponible < ANCHO_TABLA_COMPACTA;
 
-        button(
-            text(titulo_columna(
-                "Monto",
-                ColumnaOrden::Monto,
-                estado,
-            ))
-            .align_x(Alignment::Center)
-        )
-        .on_press(Message::OrdenarPor(ColumnaOrden::Monto))
-        .width(Length::FillPortion(1))
-        .style(estilo_encabezado),
+    let encabezado: Element<'a, Message> = if vista_compacta {
+        column![
+            row![
+                button(
+                    text(titulo_columna(
+                        "Descripcion",
+                        ColumnaOrden::Descripcion,
+                        estado,
+                    ))
+                    .align_x(Alignment::Center)
+                )
+                .on_press(Message::OrdenarPor(ColumnaOrden::Descripcion))
+                .width(Length::Fill)
+                .style(estilo_encabezado),
+                button(
+                    text(titulo_columna("Monto", ColumnaOrden::Monto, estado))
+                        .align_x(Alignment::Center)
+                )
+                .on_press(Message::OrdenarPor(ColumnaOrden::Monto))
+                .width(Length::Fixed(120.0))
+                .style(estilo_encabezado),
+            ]
+            .spacing(5),
+            text("Fecha · Persona · Categoria")
+                .size(14)
+                .align_x(Alignment::Center),
+        ]
+        .spacing(4)
+        .into()
+    } else {
+        row![
+            button(
+                text(titulo_columna(
+                    "Descripcion",
+                    ColumnaOrden::Descripcion,
+                    estado,
+                ))
+                .align_x(Alignment::Center)
+            )
+            .on_press(Message::OrdenarPor(ColumnaOrden::Descripcion))
+            .width(Length::FillPortion(3))
+            .style(estilo_encabezado),
+            button(
+                text(titulo_columna("Monto", ColumnaOrden::Monto, estado,))
+                    .align_x(Alignment::Center)
+            )
+            .on_press(Message::OrdenarPor(ColumnaOrden::Monto))
+            .width(Length::FillPortion(1))
+            .style(estilo_encabezado),
+            button(
+                text(titulo_columna("Persona", ColumnaOrden::Persona, estado,))
+                    .align_x(Alignment::Center)
+            )
+            .on_press(Message::OrdenarPor(ColumnaOrden::Persona))
+            .width(Length::FillPortion(1))
+            .style(estilo_encabezado),
+            button(
+                text(titulo_columna("Categoria", ColumnaOrden::Categoria, estado,))
+                    .align_x(Alignment::Center)
+            )
+            .on_press(Message::OrdenarPor(ColumnaOrden::Categoria))
+            .width(Length::FillPortion(1))
+            .style(estilo_encabezado),
+            button(
+                text(titulo_columna("Fecha", ColumnaOrden::Fecha, estado,))
+                    .align_x(Alignment::Center)
+            )
+            .on_press(Message::OrdenarPor(ColumnaOrden::Fecha))
+            .width(Length::FillPortion(1))
+            .style(estilo_encabezado),
+        ]
+        .spacing(5)
+        .into()
+    };
 
-        button(
-            text(titulo_columna(
-                "Persona",
-                ColumnaOrden::Persona,
-                estado,
-            ))
-            .align_x(Alignment::Center)
-        )
-        .on_press(Message::OrdenarPor(ColumnaOrden::Persona))
-        .width(Length::FillPortion(1))
-        .style(estilo_encabezado),
-
-        button(
-            text(titulo_columna(
-                "Categoria",
-                ColumnaOrden::Categoria,
-                estado,
-            ))
-            .align_x(Alignment::Center)
-        )
-        .on_press(Message::OrdenarPor(ColumnaOrden::Categoria))
-        .width(Length::FillPortion(1))
-        .style(estilo_encabezado),
-
-        button(
-            text(titulo_columna(
-                "Fecha",
-                ColumnaOrden::Fecha,
-                estado,
-            ))
-            .align_x(Alignment::Center)
-        )
-        .on_press(Message::OrdenarPor(ColumnaOrden::Fecha))
-        .width(Length::FillPortion(1))
-        .style(estilo_encabezado),
-    ]
-    .spacing(5);
-
-    let mut filas = column![]
-        .spacing(5);
+    let mut filas = column![].spacing(5);
 
     for (indice, _) in indices {
         let gasto = &estado.gastos[indice];
 
-        let seleccionado =
-            estado.gasto_seleccionado == Some(gasto.id);
+        let seleccionado = estado.gasto_seleccionado == Some(gasto.id);
 
-        let fila = row![
-            text(&gasto.descripcion)
-                .width(Length::FillPortion(3))
-                .align_x(Alignment::Center),
+        let fila: Element<'a, Message> = if vista_compacta {
+            let detalles = format!("{} · {} · {}", gasto.fecha, gasto.persona, gasto.categoria);
 
-            text(formatear_monto(gasto.monto))
-                .width(Length::FillPortion(1))
-                .align_x(Alignment::Center),
-
-            text(&gasto.persona)
-                .width(Length::FillPortion(1))
-                .align_x(Alignment::Center),
-
-            text(&gasto.categoria)
-                .width(Length::FillPortion(1))
-                .align_x(Alignment::Center),
-
-            text(&gasto.fecha)
-                .width(Length::FillPortion(1))
-                .align_x(Alignment::Center),
-        ]
-        .spacing(5)
-        .height(Length::Fixed(36.0));
-
-        let fila = button(fila)
+            button(
+                column![
+                    row![
+                        text(&gasto.descripcion)
+                            .width(Length::Fill)
+                            .align_x(Alignment::Start),
+                        text(formatear_monto(gasto.monto))
+                            .width(Length::Fixed(120.0))
+                            .align_x(Alignment::Center),
+                    ]
+                    .spacing(5),
+                    text(detalles)
+                        .size(14)
+                        .width(Length::Fill)
+                        .align_x(Alignment::Center),
+                ]
+                .spacing(4)
+                .padding([7, 0]),
+            )
             .on_press(Message::GastoSeleccionado(gasto.id))
-            .style(move |_theme, _status| {
-                if seleccionado {
-                    button::Style {
-                        background: Some(
-                            Background::Color(
-                                estilos::FONDO_FILA_SELECCIONADA
-                            )
-                        ),
-                        text_color:
-                            estilos::TEXTO_FILA_SELECCIONADA,
-                        ..Default::default()
-                    }
-                } else {
-                    button::Style {
-                        background: Some(
-                            Background::Color(
-                                estilos::FONDO_TABLA_GASTOS
-                            )
-                        ),
-                        text_color:
-                            estilos::GASTOS_TEXTO_TABLA,
-                        ..Default::default()
-                    }
-                }
-            });
+            .style(move |_theme, _status| estilo_fila_gasto(seleccionado))
+            .into()
+        } else {
+            button(
+                row![
+                    text(&gasto.descripcion)
+                        .width(Length::FillPortion(3))
+                        .align_x(Alignment::Center),
+                    text(formatear_monto(gasto.monto))
+                        .width(Length::FillPortion(1))
+                        .align_x(Alignment::Center),
+                    text(&gasto.persona)
+                        .width(Length::FillPortion(1))
+                        .align_x(Alignment::Center),
+                    text(&gasto.categoria)
+                        .width(Length::FillPortion(1))
+                        .align_x(Alignment::Center),
+                    text(&gasto.fecha)
+                        .width(Length::FillPortion(1))
+                        .align_x(Alignment::Center),
+                ]
+                .spacing(5)
+                .height(Length::Fixed(36.0)),
+            )
+            .on_press(Message::GastoSeleccionado(gasto.id))
+            .style(move |_theme, _status| estilo_fila_gasto(seleccionado))
+            .into()
+        };
 
         filas = filas.push(fila);
     }
 
     container(
-        column![
-            encabezado,
-
-            scrollable(filas)
-                .height(Length::Fill),
-        ]
-        .spacing(10)
-        .width(Length::Fill)
-        .height(Length::Fill),
+        column![encabezado, scrollable(filas).height(Length::Fill),]
+            .spacing(10)
+            .width(Length::Fill)
+            .height(Length::Fill),
     )
     .width(Length::Fill)
     .height(Length::Fill)
@@ -1186,74 +1083,6 @@ fn titulo_columna(
         }
     } else {
         nombre.to_string()
-    }
-}
-
-fn numero_mes(nombre: &str) -> Option<u32> {
-    match nombre {
-        "Enero" => Some(1),
-        "Febrero" => Some(2),
-        "Marzo" => Some(3),
-        "Abril" => Some(4),
-        "Mayo" => Some(5),
-        "Junio" => Some(6),
-        "Julio" => Some(7),
-        "Agosto" => Some(8),
-        "Septiembre" => Some(9),
-        "Octubre" => Some(10),
-        "Noviembre" => Some(11),
-        "Diciembre" => Some(12),
-        _ => Some(0),
-    }
-}
-
-fn nombre_mes(numero: u32) -> &'static str {
-    match numero {
-        1 => "Enero",
-        2 => "Febrero",
-        3 => "Marzo",
-        4 => "Abril",
-        5 => "Mayo",
-        6 => "Junio",
-        7 => "Julio",
-        8 => "Agosto",
-        9 => "Septiembre",
-        10 => "Octubre",
-        11 => "Noviembre",
-        12 => "Diciembre",
-        _ => "Agosto",
-    }
-}
-
-fn formatear_monto(monto: f64) -> String {
-    let negativo = monto < 0.0;
-    let monto = monto.abs();
-
-    let parte_entera = monto.trunc() as u64;
-    let parte_decimal = ((monto.fract() * 100.0).round()) as u64;
-
-    let digitos = parte_entera.to_string();
-    let mut entero_formateado = String::new();
-
-    for (i, caracter) in digitos.chars().enumerate() {
-        if i > 0 && (digitos.len() - i).is_multiple_of(3) {
-            entero_formateado.push('.');
-        }
-
-        entero_formateado.push(caracter);
-    }
-
-    let signo = if negativo { "-" } else { "" };
-
-    if parte_decimal == 0 {
-        format!("{}${}", signo, entero_formateado)
-    } else {
-        format!(
-            "{}${},{:02}",
-            signo,
-            entero_formateado,
-            parte_decimal
-        )
     }
 }
 
@@ -1292,5 +1121,39 @@ fn estilo_encabezado(
         text_color: estilos::GASTOS_TEXTO_CABEZA_TABLA,
         border: Border::default(),
         ..Default::default()
+    }
+}
+
+fn estilo_fila_gasto(seleccionado: bool) -> button::Style {
+    if seleccionado {
+        button::Style {
+            background: Some(Background::Color(estilos::FONDO_FILA_SELECCIONADA)),
+            text_color: estilos::TEXTO_FILA_SELECCIONADA,
+            ..Default::default()
+        }
+    } else {
+        button::Style {
+            background: Some(Background::Color(estilos::FONDO_TABLA_GASTOS)),
+            text_color: estilos::GASTOS_TEXTO_TABLA,
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ultimo_dia_del_mes, parsear_monto};
+
+    #[test]
+    fn acepta_montos_en_formato_local() {
+        assert_eq!(parsear_monto("1.234,50"), Ok(1234.5));
+        assert_eq!(parsear_monto("1234.50"), Ok(1234.5));
+    }
+
+    #[test]
+    fn calcula_el_ultimo_dia_incluso_en_anios_bisiestos() {
+        assert_eq!(ultimo_dia_del_mes(2, 2024), 29);
+        assert_eq!(ultimo_dia_del_mes(2, 2026), 28);
+        assert_eq!(ultimo_dia_del_mes(4, 2026), 30);
     }
 }

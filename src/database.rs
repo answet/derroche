@@ -27,6 +27,15 @@ pub fn conectar() -> Result<Connection> {
     Ok(conexion)
 }
 
+pub fn conectar_inicializada() -> Result<Connection, String> {
+    let conexion = conectar().map_err(|error| error.to_string())?;
+
+    // Las operaciones pueden ejecutarse antes de que la app haya cargado datos iniciales.
+    inicializar_db(&conexion).map_err(|error| error.to_string())?;
+
+    Ok(conexion)
+}
+
 pub fn inicializar_db(conexion: &Connection) -> rusqlite::Result<()> {
     conexion.execute_batch(
         "
@@ -43,7 +52,7 @@ pub fn inicializar_db(conexion: &Connection) -> rusqlite::Result<()> {
         CREATE TABLE IF NOT EXISTS gastos (
             id INTEGER PRIMARY KEY,
             descripcion TEXT NOT NULL,
-            monto REAL NOT NULL,
+            monto REAL NOT NULL CHECK(monto > 0),
             fecha TEXT NOT NULL,
             categoria_id INTEGER NOT NULL,
             persona_id INTEGER NOT NULL,
@@ -59,6 +68,12 @@ pub fn inicializar_db(conexion: &Connection) -> rusqlite::Result<()> {
             id INTEGER PRIMARY KEY,
             mes_default INTEGER NOT NULL,
             anio_default INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_gastos_mes_anio
+        ON gastos (
+            CAST(substr(fecha, 4, 2) AS INTEGER),
+            CAST(substr(fecha, 7, 4) AS INTEGER)
         );
         ",
     )?;

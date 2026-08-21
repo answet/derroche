@@ -1,4 +1,6 @@
-use iced::Color;
+use iced::{Background, Border, Color, Shadow, Theme};
+use iced::overlay::menu;
+use iced::widget::button;
 
 
 // ==================================================
@@ -81,6 +83,29 @@ pub const BORDE_BOTONES_GASTOS: Color =
 pub const GASTOS_TEXTO_BOTONES: Color =
     Color::from_rgb8(46, 52, 64);
 
+pub fn estilo_boton_gastos(
+    _theme: &Theme,
+    _status: button::Status,
+) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(FONDO_BOTONES_GASTOS)),
+        text_color: GASTOS_TEXTO_BOTONES,
+        border: Border::default(),
+        ..Default::default()
+    }
+}
+
+pub fn estilo_menu_selector(_theme: &Theme) -> menu::Style {
+    menu::Style {
+        text_color: GASTOS_TEXTO_SELECTOR,
+        background: Background::Color(GASTOS_TEXTO_SELECTOR_FONDO),
+        border: Border::default(),
+        selected_text_color: GASTOS_TEXTO_SELECTOR_SELECCIONADO,
+        selected_background: Background::Color(GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
+        shadow: Shadow::default(),
+    }
+}
+
 
 // ==================================================
 // ANÁLISIS
@@ -119,6 +144,28 @@ pub const BOTONES_CONFIGURACION_ELIMINAR: Color =
 
 pub const TEXTO_CONFIGURACION_ELIMINAR: Color =
     Color::from_rgb8(229, 233, 240);
+
+pub fn estilo_boton_configuracion_agregar(
+    _theme: &Theme,
+    _status: button::Status,
+) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(BOTONES_CONFIGURACION_AGREGAR)),
+        text_color: TEXTO_CONFIGURACION_AGREGAR,
+        ..Default::default()
+    }
+}
+
+pub fn estilo_boton_configuracion_eliminar(
+    _theme: &Theme,
+    _status: button::Status,
+) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(BOTONES_CONFIGURACION_ELIMINAR)),
+        text_color: TEXTO_CONFIGURACION_ELIMINAR,
+        ..Default::default()
+    }
+}
 
 
 // --------------------------------------------------

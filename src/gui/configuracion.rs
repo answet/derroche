@@ -1,29 +1,11 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input};
 
-use iced::{Alignment, Background, Border, Element, Length, Shadow, Task};
+use iced::{Alignment, Background, Border, Element, Length, Task};
 
 use crate::models::{Categoria, Configuracion, Persona};
-
-use iced::overlay::menu;
+use crate::formato::{anios_alrededor, nombre_mes, numero_mes, MESES};
 
 use crate::estilos;
-
-const ANIOS: [i32; 5] = [2026, 2027, 2028, 2029, 2030];
-
-const MESES: [&str; 12] = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-];
 
 pub struct Estado {
     pub mes_default: u32,
@@ -175,11 +157,13 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
         #[cfg(target_os = "windows")]
         Message::DescargarActualizacion => {
-            if let Some((_, Some(url))) =
-                estado.actualizacion_disponible.clone()
+            if let Some(url) = estado
+                .actualizacion_disponible
+                .as_ref()
+                .and_then(|(_, url)| url.as_ref())
             {
                 Task::perform(
-                    crate::updater::descargar_actualizacion(url),
+                    crate::updater::descargar_actualizacion(url.clone()),
                     Message::ActualizacionDescargada,
                 )
             } else {
@@ -212,44 +196,10 @@ pub fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
     }
 }
 
-fn numero_mes(nombre: &str) -> Option<u32> {
-    match nombre {
-        "Enero" => Some(1),
-        "Febrero" => Some(2),
-        "Marzo" => Some(3),
-        "Abril" => Some(4),
-        "Mayo" => Some(5),
-        "Junio" => Some(6),
-        "Julio" => Some(7),
-        "Agosto" => Some(8),
-        "Septiembre" => Some(9),
-        "Octubre" => Some(10),
-        "Noviembre" => Some(11),
-        "Diciembre" => Some(12),
-        _ => None,
-    }
-}
-
-fn nombre_mes(numero: u32) -> &'static str {
-    match numero {
-        1 => "Enero",
-        2 => "Febrero",
-        3 => "Marzo",
-        4 => "Abril",
-        5 => "Mayo",
-        6 => "Junio",
-        7 => "Julio",
-        8 => "Agosto",
-        9 => "Septiembre",
-        10 => "Octubre",
-        11 => "Noviembre",
-        12 => "Diciembre",
-        _ => "Agosto",
-    }
-}
-
 pub fn view(estado: &Estado) -> Element<'_, Message> {
-    let selector_mes = pick_list(MESES, Some(nombre_mes(estado.mes_default)), |mes| {
+    let anios = anios_alrededor(estado.anio_default);
+
+    let selector_mes = pick_list(MESES, nombre_mes(estado.mes_default), |mes| {
         Message::MesDefaultSeleccionado(mes.to_string())
     })
     .style(|_theme, _status| pick_list::Style {
@@ -259,17 +209,10 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         placeholder_color: estilos::BOTON_CONFIGURACION_LISTA,
         handle_color: estilos::BOTON_CONFIGURACION_LISTA_TEXTO,
     })
-    .menu_style(|_theme| menu::Style {
-        text_color: estilos::GASTOS_TEXTO_SELECTOR,
-        background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-        border: Border::default(),
-        selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-        selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-        shadow: Shadow::default(),
-    });
+    .menu_style(estilos::estilo_menu_selector);
 
     let selector_anio = pick_list(
-        ANIOS,
+        anios,
         Some(estado.anio_default),
         Message::AnioDefaultSeleccionado,
     )
@@ -280,14 +223,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         placeholder_color: estilos::BOTON_CONFIGURACION_LISTA,
         handle_color: estilos::BOTON_CONFIGURACION_LISTA_TEXTO,
     })
-    .menu_style(|_theme| menu::Style {
-        text_color: estilos::GASTOS_TEXTO_SELECTOR,
-        background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO),
-        border: Border::default(),
-        selected_text_color: estilos::GASTOS_TEXTO_SELECTOR_SELECCIONADO,
-        selected_background: Background::Color(estilos::GASTOS_TEXTO_SELECTOR_FONDO_SELECCIONADO),
-        shadow: Shadow::default(),
-    });
+    .menu_style(estilos::estilo_menu_selector);
 
     let preferencias = container(
         column![
@@ -310,23 +246,13 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 .on_input(Message::CategoriaNombreCambiado),
             button("Agregar")
                 .on_press(Message::AgregarCategoria)
-                .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
-                    text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-                    ..Default::default()
-                }),
+                .style(estilos::estilo_boton_configuracion_agregar),
             column(estado.categorias.iter().map(|categoria| {
                 row![
                     text(&categoria.nombre).width(Length::Fill),
                     button("Eliminar")
                         .on_press(Message::EliminarCategoria(categoria.id,),)
-                        .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(
-                                estilos::BOTONES_CONFIGURACION_ELIMINAR,
-                            ),),
-                            text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
-                            ..Default::default()
-                        }),
+                        .style(estilos::estilo_boton_configuracion_eliminar),
                 ]
                 .spacing(10)
                 .into()
@@ -344,23 +270,13 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
                 .on_input(Message::PersonaNombreCambiado),
             button("Agregar")
                 .on_press(Message::AgregarPersona)
-                .style(|_theme, _status| button::Style {
-                    background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR,),),
-                    text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-                    ..Default::default()
-                }),
+                .style(estilos::estilo_boton_configuracion_agregar),
             column(estado.personas.iter().map(|persona| {
                 row![
                     text(&persona.nombre).width(Length::Fill),
                     button("Eliminar")
                         .on_press(Message::EliminarPersona(persona.id,),)
-                        .style(|_theme, _status| button::Style {
-                            background: Some(Background::Color(
-                                estilos::BOTONES_CONFIGURACION_ELIMINAR,
-                            ),),
-                            text_color: estilos::TEXTO_CONFIGURACION_ELIMINAR,
-                            ..Default::default()
-                        }),
+                        .style(estilos::estilo_boton_configuracion_eliminar),
                 ]
                 .spacing(10)
                 .into()
@@ -389,13 +305,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
         } else {
             Some(Message::BuscarActualizacion)
         })
-        .style(|_theme, _status| button::Style {
-            background: Some(Background::Color(
-                estilos::BOTONES_CONFIGURACION_AGREGAR
-            )),
-            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-            ..Default::default()
-        }),
+        .style(estilos::estilo_boton_configuracion_agregar),
 
         if estado.busqueda_actualizacion_realizada {
             match &estado.actualizacion_disponible {
@@ -419,11 +329,7 @@ pub fn view(estado: &Estado) -> Element<'_, Message> {
     #[cfg(target_os = "windows")]
     let boton_descargar = button("Descargar actualización")
         .on_press(Message::DescargarActualizacion)
-        .style(|_theme, _status| button::Style {
-            background: Some(Background::Color(estilos::BOTONES_CONFIGURACION_AGREGAR)),
-            text_color: estilos::TEXTO_CONFIGURACION_AGREGAR,
-            ..Default::default()
-        });
+        .style(estilos::estilo_boton_configuracion_agregar);
 
     #[cfg(not(target_os = "windows"))]
     let boton_descargar = text("");

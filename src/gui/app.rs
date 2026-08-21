@@ -47,12 +47,7 @@ fn inicializar() -> (Estado, Task<Message>) {
 
     let tarea = Task::perform(
         async {
-            let conexion =
-                crate::database::conectar()
-                    .map_err(|error| error.to_string())?;
-
-            crate::database::inicializar_db(&conexion)
-                .map_err(|error| error.to_string())?;
+            let conexion = crate::database::conectar_inicializada()?;
 
             let configuracion =
                 crate::repository::obtener_configuracion(&conexion)
@@ -118,9 +113,11 @@ pub enum Message {
         Vec<GastoDetalle>,
     ),
 
-    CargarDatos,
-    DatosCargados(Vec<Categoria>, Vec<Persona>, Vec<GastoDetalle>,),
-    DatosAnalisisCargados(f64, f64, Option<GastoDetalle>, Vec<TotalMensual>, Vec<GastoPorCategoria>, Vec<GastoPorPersona>),
+    CargarCategorias,
+    CargarPersonas,
+    CategoriasCargadas(Vec<Categoria>),
+    PersonasCargadas(Vec<Persona>),
+    DatosAnalisisCargados(u32, i32, f64, f64, Option<GastoDetalle>, Vec<TotalMensual>, Vec<GastoPorCategoria>, Vec<GastoPorPersona>),
 
     ErrorCarga(String),
 
@@ -141,38 +138,8 @@ struct Estado {
     configuracion: configuracion::Estado,
 }
 
-type DatosCargados = (
-    Vec<Categoria>,
-    Vec<Persona>,
-    Vec<GastoDetalle>,
-);
-
 fn conectar_db() -> Result<Connection, String> {
-    let conexion = crate::database::conectar()
-        .map_err(|error| error.to_string())?;
-
-    crate::database::inicializar_db(&conexion)
-        .map_err(|error| error.to_string())?;
-
-    Ok(conexion)
-}
-
-fn cargar_datos() -> Result<DatosCargados, String> {
-    let conexion = conectar_db()?;
-
-    let categorias =
-        crate::repository::obtener_categorias(&conexion)
-            .map_err(|error| error.to_string())?;
-
-    let personas =
-        crate::repository::obtener_personas(&conexion)
-            .map_err(|error| error.to_string())?;
-
-    let gastos =
-        crate::repository::obtener_gastos_detalle(&conexion)
-            .map_err(|error| error.to_string())?;
-
-    Ok((categorias, personas, gastos))
+    crate::database::conectar_inicializada()
 }
 
 struct DatosAnalisis {
@@ -292,7 +259,7 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
 
             Task::perform(
                 async { cargar_datos_configuracion() },
-                |resultado| match resultado {
+                move |resultado| match resultado {
                     Ok((configuracion, categorias, personas)) => {
                         Message::Configuracion(
                             configuracion::Message::DatosCargados(
@@ -326,47 +293,39 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                 .map(Message::Gastos)
         }
 
-        Message::CargarDatos => {
-            Task::perform(
-                async { cargar_datos() },
-                |resultado| match resultado {
-                    Ok((categorias, personas, gastos)) => {
-                        Message::DatosCargados(categorias, personas, gastos)
-                    }
+        Message::CargarCategorias => Task::perform(
+            async {
+                let conexion = conectar_db()?;
+                crate::repository::obtener_categorias(&conexion)
+                    .map_err(|error| error.to_string())
+            },
+            |resultado| match resultado {
+                Ok(categorias) => Message::CategoriasCargadas(categorias),
+                Err(error) => Message::ErrorCarga(error),
+            },
+        ),
 
-                    Err(error) => {
-                        println!("Error al cargar datos: {error}");
-                        Message::DatosCargados(Vec::new(), Vec::new(), Vec::new())
-                    }
-                },
-            )
+        Message::CargarPersonas => Task::perform(
+            async {
+                let conexion = conectar_db()?;
+                crate::repository::obtener_personas(&conexion)
+                    .map_err(|error| error.to_string())
+            },
+            |resultado| match resultado {
+                Ok(personas) => Message::PersonasCargadas(personas),
+                Err(error) => Message::ErrorCarga(error),
+            },
+        ),
+
+        Message::CategoriasCargadas(categorias) => {
+            estado.gastos.categorias = categorias.clone();
+            estado.configuracion.categorias = categorias;
+            Task::none()
         }
 
-        Message::DatosCargados(categorias, personas, gastos) => {
-            estado.gastos.categorias = categorias.clone();
+        Message::PersonasCargadas(personas) => {
             estado.gastos.personas = personas.clone();
-            estado.gastos.gastos = gastos;
-
-            estado.gastos.categoria = estado
-                .gastos
-                .categorias
-                .iter()
-                .find(|categoria| categoria.nombre == "Sin Categoria")
-                .cloned();
-
-            estado.gastos.persona = estado
-                .gastos
-                .personas
-                .iter()
-                .find(|persona| persona.nombre == "General")
-                .cloned();
-
-            estado.configuracion.categorias = categorias;
             estado.configuracion.personas = personas;
-
-            estado.configuracion.nueva_categoria.clear();
-            estado.configuracion.nueva_persona.clear();
-
             Task::none()
         }
 
@@ -383,9 +342,11 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                 async move {
                     cargar_datos_analisis(mes, anio)
                 },
-                |resultado| match resultado {
+                move |resultado| match resultado {
                     Ok(datos) => {
                         Message::DatosAnalisisCargados(
+                            mes,
+                            anio,
                             datos.total_mes,
                             datos.total_mes_anterior,
                             datos.mayor_gasto,
@@ -399,6 +360,8 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         println!("Error al cargar datos de analisis: {error}");
 
                         Message::DatosAnalisisCargados(
+                            mes,
+                            anio,
                             0.0,
                             0.0,
                             None,
@@ -430,9 +393,11 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                     async move {
                         cargar_datos_analisis(mes, anio)
                     },
-                    |resultado| match resultado {
+                    move |resultado| match resultado {
                         Ok(datos) => {
                             Message::DatosAnalisisCargados(
+                                mes,
+                                anio,
                                 datos.total_mes,
                                 datos.total_mes_anterior,
                                 datos.mayor_gasto,
@@ -446,6 +411,8 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                             println!("Error al cargar datos de analisis: {error}");
 
                             Message::DatosAnalisisCargados(
+                                mes,
+                                anio,
                                 0.0,
                                 0.0,
                                 None,
@@ -462,6 +429,8 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
         }
 
         Message::DatosAnalisisCargados(
+            mes,
+            anio,
             total,
             total_anterior,
             mayor_gasto,
@@ -469,6 +438,10 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
             gastos_por_categoria,
             gastos_por_persona,
         ) => {
+            if estado.analisis.mes != mes || estado.analisis.anio != anio {
+                return Task::none();
+            }
+
             estado.analisis.total_mes = total;
             estado.analisis.total_mes_anterior = total_anterior;
             estado.analisis.mayor_gasto = mayor_gasto;
@@ -549,14 +522,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         },
                         |resultado| {
                             match resultado {
-                                Ok(()) => Message::CargarDatos,
+                                Ok(()) => Message::CargarCategorias,
 
                                 Err(error) => {
                                     println!(
                                         "Error al agregar categoria: {error}"
                                     );
 
-                                    Message::CargarDatos
+                                    Message::CargarCategorias
                                 }
                             }
                         },
@@ -587,14 +560,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         },
                         |resultado| {
                             match resultado {
-                                Ok(()) => Message::CargarDatos,
+                                Ok(()) => Message::CargarPersonas,
 
                                 Err(error) => {
                                     println!(
                                         "Error al agregar persona: {error}"
                                     );
 
-                                    Message::CargarDatos
+                                    Message::CargarPersonas
                                 }
                             }
                         },
@@ -616,14 +589,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         },
                         |resultado| {
                             match resultado {
-                                Ok(()) => Message::CargarDatos,
+                                Ok(()) => Message::CargarCategorias,
 
                                 Err(error) => {
                                     println!(
                                         "Error al eliminar categoria: {error}"
                                     );
 
-                                    Message::CargarDatos
+                                    Message::CargarCategorias
                                 }
                             }
                         },
@@ -645,14 +618,14 @@ fn update(estado: &mut Estado, mensaje: Message) -> Task<Message> {
                         },
                         |resultado| {
                             match resultado {
-                                Ok(()) => Message::CargarDatos,
+                                Ok(()) => Message::CargarPersonas,
 
                                 Err(error) => {
                                     println!(
                                         "Error al eliminar persona: {error}"
                                     );
 
-                                    Message::CargarDatos
+                                    Message::CargarPersonas
                                 }
                             }
                         },

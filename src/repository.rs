@@ -1,4 +1,5 @@
 use rusqlite::Connection;
+use chrono::NaiveDate;
 use crate::models::{Categoria, GastoDetalle, Persona, TotalMensual, GastoPorCategoria, GastoPorPersona, Configuracion};
 
 const CATEGORIA_SIN_CATEGORIA_ID: i32 = 1;
@@ -133,6 +134,8 @@ pub fn agregar_gasto(
     persona_id: i32
     ) -> rusqlite::Result<()> {
 
+    validar_datos_gasto(monto, fecha)?;
+
     conn.execute(
         "
         INSERT INTO gastos
@@ -169,6 +172,8 @@ pub fn actualizar_gasto(
     categoria_id: i32,
     persona_id: i32,
 ) -> rusqlite::Result<()> {
+    validar_datos_gasto(monto, fecha)?;
+
     conn.execute(
         "
         UPDATE gastos
@@ -189,6 +194,22 @@ pub fn actualizar_gasto(
             id,
         ),
     )?;
+
+    Ok(())
+}
+
+fn validar_datos_gasto(monto: f64, fecha: &str) -> rusqlite::Result<()> {
+    if !monto.is_finite() || monto <= 0.0 {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "El monto debe ser finito y mayor a cero".to_string(),
+        ));
+    }
+
+    NaiveDate::parse_from_str(fecha, "%d-%m-%Y").map_err(|_| {
+        rusqlite::Error::InvalidParameterName(
+            "La fecha debe tener el formato DD-MM-AAAA y ser válida".to_string(),
+        )
+    })?;
 
     Ok(())
 }
@@ -418,4 +439,25 @@ pub fn actualizar_configuracion(
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::agregar_gasto;
+    use rusqlite::Connection;
+
+    fn conexion() -> Connection {
+        let conexion = Connection::open_in_memory().unwrap();
+        crate::database::inicializar_db(&conexion).unwrap();
+        conexion
+    }
+
+    #[test]
+    fn rechaza_montos_no_finitos_y_fechas_invalidas() {
+        let conexion = conexion();
+
+        assert!(agregar_gasto(&conexion, "Prueba", f64::NAN, "01-01-2026", 1, 1).is_err());
+        assert!(agregar_gasto(&conexion, "Prueba", 10.0, "31-02-2026", 1, 1).is_err());
+        assert!(agregar_gasto(&conexion, "Prueba", 10.0, "29-02-2024", 1, 1).is_ok());
+    }
 }
