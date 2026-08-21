@@ -114,11 +114,13 @@ pub fn estilo_menu_selector(_theme: &Theme) -> menu::Style {
 pub const FONDO_ANALISIS: Color =
     Color::from_rgb8(67, 76, 94);
 
-pub const EVO_MES: Color =
-    Color::from_rgb8(236, 239, 244);
-
-pub const EVO_MES_SELECCIONADO: Color =
-    Color::from_rgb8(136, 192, 208);
+pub const ANALISIS_TARJETA: Color = Color::from_rgb8(59, 66, 82);
+pub const ANALISIS_BORDE: Color = Color::from_rgb8(76, 86, 106);
+pub const ANALISIS_TEXTO_PRINCIPAL: Color = Color::from_rgb8(236, 239, 244);
+pub const ANALISIS_TEXTO_SECUNDARIO: Color = Color::from_rgb8(180, 190, 205);
+pub const ANALISIS_ACENTO: Color = Color::from_rgb8(136, 192, 208);
+pub const ANALISIS_ACENTO_SUAVE: Color = Color::from_rgb8(163, 190, 140);
+pub const ANALISIS_BARRA_FONDO: Color = Color::from_rgb8(76, 86, 106);
 
 
 // ==================================================

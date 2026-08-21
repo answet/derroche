@@ -1017,9 +1017,10 @@ fn tabla_gastos<'a>(estado: &'a Estado, ancho_disponible: f32) -> Element<'a, Me
                 .width(Length::Fixed(120.0))
                 .style(estilo_encabezado),
             ]
-            .spacing(5),
+            .spacing(4),
             text("Fecha · Persona · Categoria")
                 .size(14)
+                .color(estilos::GASTOS_TEXTO_CABEZA_TABLA)
                 .align_x(Alignment::Center),
         ]
         .spacing(4)
@@ -1066,7 +1067,7 @@ fn tabla_gastos<'a>(estado: &'a Estado, ancho_disponible: f32) -> Element<'a, Me
             .width(Length::FillPortion(1))
             .style(estilo_encabezado),
         ]
-        .spacing(5)
+        .spacing(4)
         .into()
     };
 
@@ -1133,8 +1134,17 @@ fn tabla_gastos<'a>(estado: &'a Estado, ancho_disponible: f32) -> Element<'a, Me
     }
 
     container(
-        column![encabezado, scrollable(filas).height(Length::Fill),]
-            .spacing(10)
+        column![
+            container(encabezado)
+                .width(Length::Fill)
+                .padding([8, 10])
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(estilos::FONDO_TABLA_GASTOS)),
+                    ..Default::default()
+                }),
+            scrollable(filas).height(Length::Fill),
+        ]
+            .spacing(6)
             .width(Length::Fill)
             .height(Length::Fill),
     )
@@ -1196,7 +1206,11 @@ fn estilo_encabezado(
     button::Style {
         background: Some(Background::Color(estilos::BORDE_TABLA_GASTOS)),
         text_color: estilos::GASTOS_TEXTO_CABEZA_TABLA,
-        border: Border::default(),
+        border: Border {
+            color: estilos::BORDE_TABLA_GASTOS,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
         ..Default::default()
     }
 }
